@@ -7,6 +7,7 @@ from ..game.game import Game
 from ..game.match_controller import GameStepFailedException, MatchController
 from ..game.constants import Constants
 
+
 class LuxEnvironment(gym.Env):
     """
     Custom Environment that follows gym interface
@@ -24,16 +25,16 @@ class LuxEnvironment(gym.Env):
 
         # Create the game
         self.game = Game(configs)
-        self.match_controller = MatchController(self.game, 
-                                                agents=[learning_agent, opponent_agent], 
+        self.match_controller = MatchController(self.game,
+                                                agents=[learning_agent, opponent_agent],
                                                 replay_validate=replay_validate)
 
         self.action_space = []
-        if hasattr( learning_agent, 'action_space' ):
+        if hasattr(learning_agent, 'action_space'):
             self.action_space = learning_agent.action_space
-        
+
         self.observation_space = {}
-        if hasattr( learning_agent, 'observation_space' ):
+        if hasattr(learning_agent, 'observation_space'):
             self.observation_space = learning_agent.observation_space
 
         self.learning_agent = learning_agent
