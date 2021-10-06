@@ -5,7 +5,7 @@ import gym
 from stable_baselines3.common.policies import ActorCriticPolicy
 from torch import nn
 
-from src.models.action_net import CustomNetwork, CustomMlpExtractor
+from src.models.action_net import CustomMlpExtractor
 
 
 class CustomActorCriticPolicy(ActorCriticPolicy):
