@@ -9,6 +9,7 @@ from gym import spaces
 
 from luxai2021.env.agent import Agent, AgentWithModel
 from luxai2021.game.actions import *
+from luxai2021.game.game import Game
 from luxai2021.game.game_constants import GAME_CONSTANTS
 from luxai2021.game.position import Position
 
@@ -100,6 +101,128 @@ def smart_transfer_to_nearby(game, team, unit_id, unit, target_type_restriction=
     return TransferAction(team, unit_id, target_unit_id, resource_type, resource_amount)
 
 
+def find_all_resources(game_state):
+    resource_tiles = []
+    height = game_state.map.height
+    width = game_state.map.width
+    for y in range(height):
+        for x in range(width):
+            cell = game_state.map.get_cell(x, y)
+            if cell.has_resource():
+                resource_tiles.append(cell)
+
+    return resource_tiles
+
+
+def append_position_layer(game_state_matrix: np.ndarray, entity) -> np.ndarray:
+    layer = np.zeros((32, 32))
+    layer[entity.pos.x][entity.pos.y] = 1
+    return np.dstack((game_state_matrix, layer))
+
+
+def create_map_state_matrix(game_state: Game) -> np.ndarray:
+    """
+    Creates a (map height x map width x 17) matrix representing the current map state.
+    The map is encoded in the following way:
+        0. Wood (float)
+        1. Coal (float)
+        2. Uranium (float)
+        3. own_city_tile
+        4. enemy_city_tile
+        5. city_cooldown
+        6. fuel city
+        7. own_worker
+        8. enemy_worker
+        9. own_cart
+       10. enemy_cart
+       11. cargo.wood
+       12. cargo.coal
+       13. cargo.uranium
+       14. unit_cooldown (shared across worker & cart)
+       15. road_lvl (float)
+       16. is_valid_map (this is needed because we pad to 32x32)
+    :param game_state: current lux.game.Game object
+    :return: np.ndarray containing the encoded map state
+    """
+    map_state = np.zeros((game_state.map.height, game_state.map.width, 17))
+    pad_width = (32 - game_state.map.width) // 2
+
+    resource_tiles = find_all_resources(game_state)
+    for tile in resource_tiles:
+        if tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
+            map_state[tile.pos.x][tile.pos.y][0] = tile.resource.amount
+        elif tile.resource.type == Constants.RESOURCE_TYPES.COAL:
+            map_state[tile.pos.x][tile.pos.y][1] = tile.resource.amount
+        else:
+            map_state[tile.pos.x][tile.pos.y][2] = tile.resource.amount
+
+    for _, city in game_state.cities.items():
+        if city.team == 0:
+            for tile in city.city_cells:
+                map_state[tile.pos.x][tile.pos.y][3] = 1
+                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown
+                map_state[tile.pos.x][tile.pos.y][6] = city.fuel
+        if city.team == 1:
+            for tile in city.city_cells:
+                map_state[tile.pos.x][tile.pos.y][4] = 1
+                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown
+                map_state[tile.pos.x][tile.pos.y][6] = city.fuel
+
+    for unit in game_state.state["teamStates"][0]["units"].values():
+        if unit.type == 0:
+            map_state[unit.pos.x][unit.pos.x][7] += 1  # units can stack on a citytile
+        elif unit.type == 1:
+            map_state[unit.pos.x][unit.pos.x][9] += 1
+        map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood']
+        map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal']
+        map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium']
+        map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown
+
+    for unit in game_state.state["teamStates"][1]["units"].values():
+        if unit.is_worker():
+            map_state[unit.pos.x][unit.pos.x][8] += 1
+        elif unit.is_cart():
+            map_state[unit.pos.x][unit.pos.x][10] += 1
+        map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood']
+        map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal']
+        map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium']
+        map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown
+
+    for y in range(game_state.map.height):
+        for x in range(game_state.map.width):
+            cell = game_state.map.get_cell_by_pos(Position(x, y))
+            map_state[cell.pos.x][cell.pos.y][15] = cell.road
+            map_state[cell.pos.x][cell.pos.y][16] = 1  # is map cell
+
+    map_padded = np.pad(map_state, [(pad_width,), (pad_width,), (0,)], mode="constant", constant_values=0)
+    return map_padded
+
+
+def get_game_state_matrix(game_state: Game, team):
+    """Get game state as numpy (1x5) array
+    :param game_state:
+    :return: Numpy array of shape (1x5)
+    """
+    current_step = game_state.turn
+    wood = 0
+    coal = 0
+    uranium = 0
+    night = 1 if (game_state.turn % 40) > 30 else 0
+    for tile in find_all_resources(game_state):
+        if tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
+            wood += tile.resource.amount
+        elif tile.resource.type == Constants.RESOURCE_TYPES.COAL:
+            coal += tile.resource.amount
+        elif tile.resource.type == Constants.RESOURCE_TYPES.URANIUM:
+            uranium += tile.resource.amount
+        else:
+            # this should actually never happen
+            print("not recognised tile type", tile.resource.type)
+            pass
+    research_points = game_state.state["teamStates"][team]["researchPoints"]
+    return np.array([current_step, night, wood, coal, uranium])
+
+
 ########################################################################################################################
 # This is the Agent that you need to design for the competition
 ########################################################################################################################
@@ -135,44 +258,6 @@ class AgentPolicy(AgentWithModel):
         ]
         self.action_space = spaces.Discrete(max(len(self.actions_units), len(self.actions_cities)))
 
-        # Observation space: (Basic minimum for a miner agent)
-        # Object:
-        #   1x is worker
-        #   1x is cart
-        #   1x is citytile
-        #
-        #   5x direction_nearest_wood
-        #   1x distance_nearest_wood
-        #   1x amount
-        #
-        #   5x direction_nearest_coal
-        #   1x distance_nearest_coal
-        #   1x amount
-        #
-        #   5x direction_nearest_uranium
-        #   1x distance_nearest_uranium
-        #   1x amount
-        #
-        #   5x direction_nearest_city
-        #   1x distance_nearest_city
-        #   1x amount of fuel
-        #
-        #   28x (the same as above, but direction, distance, and amount to the furthest of each)
-        #
-        #   5x direction_nearest_worker
-        #   1x distance_nearest_worker
-        #   1x amount of cargo
-        # Unit:
-        #   1x cargo size
-        # State:
-        #   1x is night
-        #   1x percent of game done
-        #   2x citytile counts [cur player, opponent]
-        #   2x worker counts [cur player, opponent]
-        #   2x cart counts [cur player, opponent]
-        #   1x research points [cur player]
-        #   1x researched coal [cur player]
-        #   1x researched uranium [cur player]
         self.observation_shape = (3 + 7 * 5 * 2 + 1 + 1 + 1 + 2 + 2 + 2 + 3,)
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
@@ -191,238 +276,17 @@ class AgentPolicy(AgentWithModel):
         """
         Implements getting a observation from the current game for this unit or city
         """
-        observation_index = 0
-        if is_new_turn:
-            # It's a new turn this event. This flag is set True for only the first observation from each turn.
-            # Update any per-turn fixed observation space that doesn't change per unit/city controlled.
+        obs = create_map_state_matrix(game)
 
-            # Build a list of object nodes by type for quick distance-searches
-            self.object_nodes = {}
-
-            # Add resources
-            for cell in game.map.resources:
-                if cell.resource.type not in self.object_nodes:
-                    self.object_nodes[cell.resource.type] = np.array([[cell.pos.x, cell.pos.y]])
-                else:
-                    self.object_nodes[cell.resource.type] = np.concatenate(
-                        (
-                            self.object_nodes[cell.resource.type],
-                            [[cell.pos.x, cell.pos.y]]
-                        ),
-                        axis=0
-                    )
-
-            # Add your own and opponent units
-            for t in [team, (team + 1) % 2]:
-                for u in game.state["teamStates"][team]["units"].values():
-                    key = str(u.type)
-                    if t != team:
-                        key = str(u.type) + "_opponent"
-
-                    if key not in self.object_nodes:
-                        self.object_nodes[key] = np.array([[u.pos.x, u.pos.y]])
-                    else:
-                        self.object_nodes[key] = np.concatenate(
-                            (
-                                self.object_nodes[key],
-                                [[u.pos.x, u.pos.y]]
-                            )
-                            , axis=0
-                        )
-
-            # Add your own and opponent cities
-            for city in game.cities.values():
-                for cells in city.city_cells:
-                    key = "city"
-                    if city.team != team:
-                        key = "city_opponent"
-
-                    if key not in self.object_nodes:
-                        self.object_nodes[key] = np.array([[cells.pos.x, cells.pos.y]])
-                    else:
-                        self.object_nodes[key] = np.concatenate(
-                            (
-                                self.object_nodes[key],
-                                [[cells.pos.x, cells.pos.y]]
-                            )
-                            , axis=0
-                        )
-
-        # Observation space: (Basic minimum for a miner agent)
-        # Object:
-        #   1x is worker
-        #   1x is cart
-        #   1x is citytile
-        #   5x direction_nearest_wood
-        #   1x distance_nearest_wood
-        #   1x amount
-        #
-        #   5x direction_nearest_coal
-        #   1x distance_nearest_coal
-        #   1x amount
-        #
-        #   5x direction_nearest_uranium
-        #   1x distance_nearest_uranium
-        #   1x amount
-        #
-        #   5x direction_nearest_city
-        #   1x distance_nearest_city
-        #   1x amount of fuel
-        #
-        #   5x direction_nearest_worker
-        #   1x distance_nearest_worker
-        #   1x amount of cargo
-        #
-        #   28x (the same as above, but direction, distance, and amount to the furthest of each)
-        #
-        # Unit:
-        #   1x cargo size
-        # State:
-        #   1x is night
-        #   1x percent of game done
-        #   2x citytile counts [cur player, opponent]
-        #   2x worker counts [cur player, opponent]
-        #   2x cart counts [cur player, opponent]
-        #   1x research points [cur player]
-        #   1x researched coal [cur player]
-        #   1x researched uranium [cur player]
-        obs = np.zeros(self.observation_shape)
-
-        # Update the type of this object
-        #   1x is worker
-        #   1x is cart
-        #   1x is citytile
-        observation_index = 0
+        entity = None
         if unit is not None:
-            if unit.type == Constants.UNIT_TYPES.WORKER:
-                obs[observation_index] = 1.0  # Worker
-            else:
-                obs[observation_index + 1] = 1.0  # Cart
-        if city_tile is not None:
-            obs[observation_index + 2] = 1.0  # CityTile
-        observation_index += 3
-
-        pos = None
-        if unit is not None:
-            pos = unit.pos
+            entity = unit
         else:
-            pos = city_tile.pos
+            entity = city_tile
 
-        if pos is None:
-            observation_index += 7 * 5 * 2
-        else:
-            # Encode the direction to the nearest objects
-            #   5x direction_nearest
-            #   1x distance
-            for distance_function in [closest_node, furthest_node]:
-                for key in [
-                    Constants.RESOURCE_TYPES.WOOD,
-                    Constants.RESOURCE_TYPES.COAL,
-                    Constants.RESOURCE_TYPES.URANIUM,
-                    "city",
-                    str(Constants.UNIT_TYPES.WORKER)]:
-                    # Process the direction to and distance to this object type
-
-                    # Encode the direction to the nearest object (excluding itself)
-                    #   5x direction
-                    #   1x distance
-                    if key in self.object_nodes:
-                        if (
-                                (key == "city" and city_tile is not None) or
-                                (unit is not None and str(unit.type) == key and len(
-                                    game.map.get_cell_by_pos(unit.pos).units) <= 1)
-                        ):
-                            # Filter out the current unit from the closest-search
-                            closest_index = closest_node((pos.x, pos.y), self.object_nodes[key])
-                            filtered_nodes = np.delete(self.object_nodes[key], closest_index, axis=0)
-                        else:
-                            filtered_nodes = self.object_nodes[key]
-
-                        if len(filtered_nodes) == 0:
-                            # No other object of this type
-                            obs[observation_index + 5] = 1.0
-                        else:
-                            # There is another object of this type
-                            closest_index = distance_function((pos.x, pos.y), filtered_nodes)
-
-                            if closest_index is not None and closest_index >= 0:
-                                closest = filtered_nodes[closest_index]
-                                closest_position = Position(closest[0], closest[1])
-                                direction = pos.direction_to(closest_position)
-                                mapping = {
-                                    Constants.DIRECTIONS.CENTER: 0,
-                                    Constants.DIRECTIONS.NORTH: 1,
-                                    Constants.DIRECTIONS.WEST: 2,
-                                    Constants.DIRECTIONS.SOUTH: 3,
-                                    Constants.DIRECTIONS.EAST: 4,
-                                }
-                                obs[observation_index + mapping[direction]] = 1.0  # One-hot encoding direction
-
-                                # 0 to 1 distance
-                                distance = pos.distance_to(closest_position)
-                                obs[observation_index + 5] = min(distance / 20.0, 1.0)
-
-                                # 0 to 1 value (amount of resource, cargo for unit, or fuel for city)
-                                if key == "city":
-                                    # City fuel as % of upkeep for 200 turns
-                                    c = game.cities[game.map.get_cell_by_pos(closest_position).city_tile.city_id]
-                                    obs[observation_index + 6] = min(
-                                        c.fuel / (c.get_light_upkeep() * 200.0),
-                                        1.0
-                                    )
-                                elif key in [Constants.RESOURCE_TYPES.WOOD, Constants.RESOURCE_TYPES.COAL,
-                                             Constants.RESOURCE_TYPES.URANIUM]:
-                                    # Resource amount
-                                    obs[observation_index + 6] = min(
-                                        game.map.get_cell_by_pos(closest_position).resource.amount / 500,
-                                        1.0
-                                    )
-                                else:
-                                    # Unit cargo
-                                    obs[observation_index + 6] = min(
-                                        next(iter(game.map.get_cell_by_pos(
-                                            closest_position).units.values())).get_cargo_space_left() / 100,
-                                        1.0
-                                    )
-
-                    observation_index += 7
-
-        if unit is not None:
-            # Encode the cargo space
-            #   1x cargo size
-            obs[observation_index] = unit.get_cargo_space_left() / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"][
-                "WORKER"]
-            observation_index += 1
-        else:
-            observation_index += 1
-
-        # Game state observations
-
-        #   1x is night
-        obs[observation_index] = game.is_night()
-        observation_index += 1
-
-        #   1x percent of game done
-        obs[observation_index] = game.state["turn"] / GAME_CONSTANTS["PARAMETERS"]["MAX_DAYS"]
-        observation_index += 1
-
-        #   2x citytile counts [cur player, opponent]
-        #   2x worker counts [cur player, opponent]
-        #   2x cart counts [cur player, opponent]
-        max_count = 30
-        for key in ["city", str(Constants.UNIT_TYPES.WORKER), str(Constants.UNIT_TYPES.CART)]:
-            if key in self.object_nodes:
-                obs[observation_index] = len(self.object_nodes[key]) / max_count
-            if (key + "_opponent") in self.object_nodes:
-                obs[observation_index + 1] = len(self.object_nodes[(key + "_opponent")]) / max_count
-            observation_index += 2
-
-        #   1x research points [cur player]
-        #   1x researched coal [cur player]
-        #   1x researched uranium [cur player]
-        obs[observation_index] = game.state["teamStates"][team]["researchPoints"] / 200.0
-        obs[observation_index + 1] = float(game.state["teamStates"][team]["researched"]["coal"])
-        obs[observation_index + 2] = float(game.state["teamStates"][team]["researched"]["uranium"])
+        obs = append_position_layer(obs, entity)
+        obs = obs.flatten()
+        # obs = np.hstack(obs, get_game_state_matrix(game, team)) # TODO Fix bugs here
 
         return obs
 
