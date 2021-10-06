@@ -1,2 +1,0 @@
-# LuxPythonEnvGym
-TODO: Documentation.
