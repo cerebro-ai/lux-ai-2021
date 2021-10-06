@@ -19,6 +19,9 @@ from ParamConfigurator import ParamConfigurator
 
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
+from src.models.feature_extr import CustomCNN
+
+
 def make_env(local_env, rank, seed=0):
     """
     Utility function for multi-processed env.
@@ -76,6 +79,12 @@ def train(config):
 
         # TODO: Update other training parameters
     else:
+
+        policy_kwargs = dict(
+            features_extractor_class=CustomCNN,
+            features_extractor_kwargs=dict(map_emb_dim=config.map_emb_dim),
+        )
+
         model = PPO("MlpPolicy",
                     env,
                     verbose=1,
@@ -84,7 +93,8 @@ def train(config):
                     gamma=config.gamma,
                     gae_lambda=config.gae_lambda,
                     batch_size=config.batch_size,
-                    n_steps=config.n_steps
+                    n_steps=config.n_steps,
+                    policy_kwargs=policy_kwargs
                     )
 
     callbacks = []

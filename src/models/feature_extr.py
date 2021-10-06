@@ -40,10 +40,8 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.Flatten(),
         )
 
-        # Compute shape by doing one forward pass
-
         self.linear = nn.Sequential(
-            nn.Linear(128, map_emb_dim),
+            nn.Linear(2304, map_emb_dim),
             nn.ReLU()
         )
 
