@@ -10,11 +10,11 @@ class ParamConfigurator:
         config.read('config.ini')
 
         self.id = str(random.randint(0, 10000))
-        self.learning_rate = config['training'].getint('learning_rate')
-        self.gamma = config['training'].getint('gamma')
-        self.gae_lambda = config['training'].getint('gae_lambda')
+        self.learning_rate = config['training'].getfloat('learning_rate')
+        self.gamma = config['training'].getfloat('gamma')
+        self.gae_lambda = config['training'].getfloat('gae_lambda')
         self.batch_size = config['training'].getint('batch_size')
         self.step_count = config['training'].getint('step_count')
         self.n_steps = config['training'].getint('n_steps')
-        self.path = config['training'].getint('path')
+        self.path = None
         self.n_envs = config['training'].getint('n_envs')
