@@ -15,6 +15,8 @@ from luxai2021.env.agent import Agent
 from luxai2021.env.lux_env import LuxEnvironment
 from luxai2021.game.constants import LuxMatchConfigs_Default
 
+from ParamConfigurator import ParamConfigurator
+
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
 def make_env(local_env, rank, seed=0):
@@ -34,12 +36,12 @@ def make_env(local_env, rank, seed=0):
     return _init
 
 
-def train(args):
+def train(config):
     """
     The main training loop
-    :param args: (ArgumentParser) The command line arguments
+    :param config: (ParamConfigurator) The parameters from the config
     """
-    print(args)
+    print(config)
 
     # Run a training job
     configs = LuxMatchConfigs_Default
@@ -52,25 +54,25 @@ def train(args):
 
     # Train the model
     env_eval = None
-    if args.n_envs == 1:
+    if config.n_envs == 1:
         env = LuxEnvironment(configs=configs,
                              learning_agent=player,
                              opponent_agent=opponent)
     else:
         env = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
                                                      learning_agent=AgentPolicy(mode="train"),
-                                                     opponent_agent=opponent), i) for i in range(args.n_envs)])
+                                                     opponent_agent=opponent), i) for i in range(config.n_envs)])
 
-    run_id = args.id
+    run_id = config.id
     print("Run id %s" % run_id)
 
-    if args.path:
+    if config.path:
         # by default previous model params are used (lr, batch size, gamma...)
-        model = PPO.load(args.path)
+        model = PPO.load(config.path)
         model.set_env(env=env)
 
         # Update the learning rate
-        model.lr_schedule = get_schedule_fn(args.learning_rate)
+        model.lr_schedule = get_schedule_fn(config.learning_rate)
 
         # TODO: Update other training parameters
     else:
@@ -78,11 +80,11 @@ def train(args):
                     env,
                     verbose=1,
                     tensorboard_log="./lux_tensorboard/",
-                    learning_rate=args.learning_rate,
-                    gamma=args.gamma,
-                    gae_lambda=args.gae_lambda,
-                    batch_size=args.batch_size,
-                    n_steps=args.n_steps
+                    learning_rate=config.learning_rate,
+                    gamma=config.gamma,
+                    gae_lambda=config.gae_lambda,
+                    batch_size=config.batch_size,
+                    n_steps=config.n_steps
                     )
 
     callbacks = []
@@ -96,7 +98,7 @@ def train(args):
 
     # Since reward metrics don't work for multi-environment setups, we add an evaluation logger
     # for metrics.
-    if args.n_envs > 1:
+    if config.n_envs > 1:
         # An evaluation environment is needed to measure multi-env setups. Use a fixed 4 envs.
         env_eval = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
                                                           learning_agent=AgentPolicy(mode="train"),
@@ -105,16 +107,16 @@ def train(args):
         callbacks.append(
             EvalCallback(env_eval, best_model_save_path=f'./logs_{run_id}/',
                          log_path=f'./logs_{run_id}/',
-                         eval_freq=args.n_steps * 2,  # Run it every 2 training iterations
+                         eval_freq=config.n_steps * 2,  # Run it every 2 training iterations
                          n_eval_episodes=30,  # Run 30 games
                          deterministic=False, render=False)
         )
 
     print("Training model...")
-    model.learn(total_timesteps=args.step_count,
+    model.learn(total_timesteps=config.step_count,
                 callback=callbacks)
-    if not os.path.exists(f'models/rl_model_{run_id}_{args.step_count}_steps.zip'):
-        model.save(path=f'models/rl_model_{run_id}_{args.step_count}_steps.zip')
+    if not os.path.exists(f'models/rl_model_{run_id}_{config.step_count}_steps.zip'):
+        model.save(path=f'models/rl_model_{run_id}_{config.step_count}_steps.zip')
     print("Done training model.")
 
     # Inference the model
@@ -156,19 +158,10 @@ def train(args):
     '''
 
 
+def main():
+    config = ParamConfigurator()
+    train(config)
+
+
 if __name__ == "__main__":
-    if sys.version_info < (3, 7) or sys.version_info >= (3, 8):
-        os.system("")
-
-
-        class style():
-            YELLOW = '\033[93m'
-
-
-        version = str(sys.version_info.major) + "." + str(sys.version_info.minor)
-        message = f'/!\ Warning, python{version} detected, you will need to use python3.7 to submit to kaggle.'
-        message = style.YELLOW + message
-        print(message)
-
-    # Train the model
-    train()
+    main()
