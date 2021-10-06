@@ -18,3 +18,4 @@ class ParamConfigurator:
         self.n_steps = config['training'].getint('n_steps')
         self.path = None
         self.n_envs = config['training'].getint('n_envs')
+        self.map_emb_dim = config['models'].getint('map_emb_dim')
