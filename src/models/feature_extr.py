@@ -16,7 +16,7 @@ ACTION_SIZE = 10
 TOTAL_SIZE = MAP_SIZE + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
 
 
-class CustomCNN(BaseFeaturesExtractor):
+class CustomFeatureExtractor(BaseFeaturesExtractor):
     """
     :param observation_space: (gym.Space)
     :param features_dim: (int) Number of features extracted.
@@ -24,7 +24,7 @@ class CustomCNN(BaseFeaturesExtractor):
     """
 
     def __init__(self, observation_space: gym.spaces.Box, map_emb_dim: int = 256):
-        super(CustomCNN, self).__init__(observation_space, map_emb_dim)
+        super(CustomFeatureExtractor, self).__init__(observation_space, map_emb_dim)
 
         # We assume CxHxW images (channels first)
         # Re-ordering will be done by pre-preprocessing or wrapper
@@ -67,5 +67,5 @@ class CustomCNN(BaseFeaturesExtractor):
 
 if __name__ == '__main__':
     from torchsummary import summary
-    extractor = CustomCNN(gym.spaces.Box(0, 1, (TOTAL_SIZE, )), 128)
+    extractor = CustomFeatureExtractor(gym.spaces.Box(0, 1, (TOTAL_SIZE,)), 128)
     print(summary(extractor.cnn, (MAP_PLANES, 32, 32)))

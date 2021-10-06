@@ -18,7 +18,7 @@ from luxai2021.game.constants import LuxMatchConfigs_Default
 from config import ParamConfigurator
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
-from src.models.feature_extr import CustomCNN
+from src.models.feature_extr import CustomFeatureExtractor
 from src.models.policy import CustomActorCriticPolicy
 
 
@@ -83,7 +83,7 @@ def train(config: ParamConfigurator):
     else:
 
         policy_kwargs = dict(
-            features_extractor_class=CustomCNN,
+            features_extractor_class=CustomFeatureExtractor,
             features_extractor_kwargs=dict(map_emb_dim=config.map_emb_dim),
             net_arch=[*config.net_arch_shared_layers,
                       dict(
