@@ -174,8 +174,7 @@ class AgentPolicy(AgentWithModel):
         #   1x researched coal [cur player]
         #   1x researched uranium [cur player]
         self.observation_shape = (3 + 7 * 5 * 2 + 1 + 1 + 1 + 2 + 2 + 2 + 3,)
-        self.observation_space = spaces.Box(low=0, high=1, shape=
-        self.observation_shape, dtype=np.float16)
+        self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
 
