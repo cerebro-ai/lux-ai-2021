@@ -3,7 +3,7 @@ training:
   learning_rate: 0.001
   gamma: 0.995
   gae_lambda: 0.95
-  batch_size: 256 # testing gradients
+  batch_size: 64 # testing gradients
   step_count: 10000000
   n_steps: 16384
   n_envs: 1  # Number of parallel environments to use in training
