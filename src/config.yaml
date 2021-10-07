@@ -4,8 +4,8 @@ training:
   gamma: 0.995
   gae_lambda: 0.95
   batch_size: 64 # testing gradients
-  step_count: 10000000
-  n_steps: 16384
+  step_count: 131072
+  n_steps: 8192
   n_envs: 1  # Number of parallel environments to use in training
 
 models:
