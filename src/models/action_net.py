@@ -1,5 +1,6 @@
 # from typing import Tuple
 # from typing import Dict, List, Tuple, Type, Union
+import torch
 from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
 import torch as th
@@ -47,6 +48,8 @@ class CustomMlpExtractor(MlpExtractor):
             activation_fn=activation_fn,
             device=device
         )
+        # net_arch[-1]["pi"][-1] # output dimension of pi network
+        self.linear = nn.Linear(net_arch[-1]["pi"][-1], 9)  # TODO insert actual action_size
 
     def forward(self, features: th.Tensor):  # removed -> Tuple[th.Tensor, th.Tensor]:
         """
@@ -54,23 +57,22 @@ class CustomMlpExtractor(MlpExtractor):
         If all layers are shared, then ``latent_policy == latent_value``
         """
 
-        action_mask = th.narrow(features, 1, features.shape[1]-ACTION_SIZE, ACTION_SIZE)
-        embedding = th.narrow(features, 1, 0, features.shape[1]-ACTION_SIZE)
+        action_mask = th.narrow(features, 1, features.shape[1] - ACTION_SIZE, ACTION_SIZE)
+
+        embedding = th.narrow(features, 1, 0, features.shape[1] - ACTION_SIZE)
 
         shared_latent = self.shared_net(embedding)
 
         value = self.value_net(shared_latent)
-        action_logits = self.policy_net(shared_latent)
+        action_logits: th.Tensor = self.linear(self.policy_net(shared_latent))
+
+        if ACTION_SIZE == 0:
+            action_mask = torch.ones_like(action_logits, dtype=torch.bool)
 
         # set logits of illegal actions to -inf
-        ids = th.where(action_mask == 0)
-        action_logits[ids] = -float('inf')
+        masked_action_logits = action_logits.masked_fill(~action_mask, float("-inf"))
 
         return action_logits, value
-
-
-
-
 
 
 class CustomNetwork(nn.Module):
