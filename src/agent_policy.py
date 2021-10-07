@@ -188,12 +188,19 @@ def get_game_state_matrix(game_state: Game, team):
     current_step = game_state.state['turn']
     days_until_night = (current_step % 40)
     is_night = 1 if (current_step % 40) > 30 else 0
-    team_cities = game_state.stats['teamStats'][team]['cities']
-    enemy_cities = game_state.stats['teamStats'][(team + 1) % 2]['cities']
-    team_citytiles = game_state.stats['teamStats'][team]['citytiles']
-    enemy_citytiles = game_state.stats['teamStats'][(team + 1) % 2]['citytiles']
-    team_units = game_state.stats['teamStats'][team]['units']
-    enemy_units = game_state.stats['teamStats'][(team + 1) % 2]['units']
+    team_cities = 0
+    enemy_cities = 0
+    for _, city in game_state.cities.items():
+        if city.team == team:
+            team_cities += 1
+        else:
+            enemy_cities += 1
+    team_citytiles = game_state.stats['teamStats'][team]['cityTilesBuilt']
+    enemy_citytiles = game_state.stats['teamStats'][(team + 1) % 2]['cityTilesBuilt']
+    team_workers = game_state.stats['teamStats'][team]['workersBuilt']
+    enemy_workers = game_state.stats['teamStats'][(team + 1) % 2]['workersBuilt']
+    team_carts = game_state.stats['teamStats'][team]['cartsBuilt']
+    enemy_carts = game_state.stats['teamStats'][(team + 1) % 2]['cartsBuilt']
     team_total_fuel = game_state.stats['teamStats'][team]['fuelGenerated']
     enemy_total_fuel = game_state.stats['teamStats'][(team + 1) % 2]['fuelGenerated']
     team_research_points = game_state.state["teamStates"][team]["researchPoints"]
@@ -206,8 +213,9 @@ def get_game_state_matrix(game_state: Game, team):
     enemy_uranium = game_state.stats['teamStats'][(team + 1) % 2]['resourcesCollected']['uranium']
 
     return np.array([current_step, days_until_night, is_night, team_cities, enemy_cities, team_citytiles,
-                     enemy_citytiles, team_units, enemy_units, team_total_fuel, enemy_total_fuel, team_research_points,
-                     enemy_research_points, team_wood, team_coal, team_uranium, enemy_wood, enemy_coal, enemy_uranium])
+                     enemy_citytiles, team_workers, enemy_workers, team_carts, enemy_carts, team_total_fuel,
+                     enemy_total_fuel, team_research_points, enemy_research_points, team_wood, team_coal,
+                     team_uranium, enemy_wood, enemy_coal, enemy_uranium])
 
 
 ########################################################################################################################
@@ -245,7 +253,7 @@ class AgentPolicy(AgentWithModel):
         ]
         self.action_space = spaces.Discrete(max(len(self.actions_units), len(self.actions_cities)))
 
-        self.observation_shape = 32 * 32 * 18 + 20,
+        self.observation_shape = 32 * 32 * 18 + 23,
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
@@ -292,18 +300,21 @@ class AgentPolicy(AgentWithModel):
        6. enemy_cities int
        7. team_citytiles int
        8. enemy_citytiles int
-       9. team_units int
-       10. enemy_units int
-       11. team_total_fuel int
-       12. enemy_total_fuel int
-       13. team_research_points int
-       14. enemy_research_points int
-       15. team_wood int
-       16. team_coal int
-       17. team_uranium int
-       18. enemy_wood int
-       19. enemy_coal int
-       20. enemy_uranium int
+       9. team_workers int
+       10. enemy_workers int
+       11. team_carts int
+       12. enemy_carts int
+       13. enemy_units int
+       14. team_total_fuel int
+       15. enemy_total_fuel int
+       16. team_research_points int
+       17. enemy_research_points int
+       18. team_wood int
+       19. team_coal int
+       20. team_uranium int
+       21. enemy_wood int
+       22. enemy_coal int
+       23. enemy_uranium int
        """
         obs = create_map_state_matrix(game)
 
