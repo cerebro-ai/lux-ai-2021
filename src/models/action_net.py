@@ -4,7 +4,7 @@ from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
 import torch as th
 
-total_action_size = 10
+from src.models.feature_extr import ACTION_SIZE
 
 
 class CustomMlpExtractor(MlpExtractor):
@@ -54,8 +54,8 @@ class CustomMlpExtractor(MlpExtractor):
         If all layers are shared, then ``latent_policy == latent_value``
         """
 
-        embedding = features[:-total_action_size]
-        action_mask = features[-total_action_size:]
+        action_mask = th.narrow(features, 1, features.shape[1]-ACTION_SIZE, ACTION_SIZE)
+        embedding = th.narrow(features, 1, 0, features.shape[1]-ACTION_SIZE)
 
         shared_latent = self.shared_net(embedding)
 

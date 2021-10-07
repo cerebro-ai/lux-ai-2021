@@ -31,6 +31,7 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
         assert observation_space.shape[0] == TOTAL_SIZE
         self.map_height = math.sqrt(MAP_SIZE // MAP_PLANES)
+        self.map_emb_dim = map_emb_dim
 
         self.cnn = nn.Sequential(
             nn.Conv2d(MAP_PLANES, 32, kernel_size=5, stride=2, padding=0),
@@ -47,20 +48,21 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
     @property
     def features_dim(self) -> int:
-        return self._features_dim + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
+        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         # get the first part which is the map flattened
+
         map_flattened: th.Tensor = th.narrow(observations, 1, 0, MAP_SIZE)
         game_state = th.narrow(observations, 1, MAP_SIZE, GAME_SIZE)
         unit_state = th.narrow(observations, 1, MAP_SIZE + GAME_SIZE, UNIT_SIZE)
         action_mask = th.narrow(observations, 1, MAP_SIZE + GAME_SIZE + UNIT_SIZE, ACTION_SIZE)
 
-        map_state = map_flattened.view((int(MAP_PLANES), int(self.map_height), int(self.map_height)))
+        map_state = map_flattened.view((observations.shape[0], int(MAP_PLANES), int(self.map_height), int(self.map_height)))
 
-        map_embedding = self.cnn(map_state)
+        map_embedding = self.linear(self.cnn(map_state))
 
-        features = torch.cat((map_embedding, game_state, unit_state, action_mask))
+        features = torch.cat((map_embedding, game_state, unit_state, action_mask), dim=1)
 
         return features
 
