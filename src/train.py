@@ -10,16 +10,16 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback,
 from stable_baselines3.common.utils import set_random_seed, get_schedule_fn
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from agent_policy import AgentPolicy
+from agent_policy import AgentHead
 from luxai2021.env.agent import Agent
 from luxai2021.env.lux_env import LuxEnvironment
 from luxai2021.game.constants import LuxMatchConfigs_Default
 
-from ParamConfigurator import ParamConfigurator
-
+from config import ParamConfigurator
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
-from src.models.feature_extr import CustomCNN
+from src.models.feature_extr import CustomFeatureExtractor
+from src.models.policy import CustomActorCriticPolicy
 
 
 def make_env(local_env, rank, seed=0):
@@ -39,7 +39,7 @@ def make_env(local_env, rank, seed=0):
     return _init
 
 
-def train(config):
+def train(config: ParamConfigurator):
     """
     The main training loop
     :param config: (ParamConfigurator) The parameters from the config
@@ -53,7 +53,7 @@ def train(config):
     opponent = Agent()
 
     # Create a RL agent in training mode
-    player = AgentPolicy(mode="train")
+    player = AgentHead(mode="train")
 
     # Train the model
     env_eval = None
@@ -63,11 +63,13 @@ def train(config):
                              opponent_agent=opponent)
     else:
         env = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
-                                                     learning_agent=AgentPolicy(mode="train"),
+                                                     learning_agent=AgentHead(mode="train"),
                                                      opponent_agent=opponent), i) for i in range(config.n_envs)])
 
     run_id = config.id
     print("Run id %s" % run_id)
+
+    # --- START INIT MODEL ---
 
     if config.path:
         # by default previous model params are used (lr, batch size, gamma...)
@@ -81,12 +83,17 @@ def train(config):
     else:
 
         policy_kwargs = dict(
-            features_extractor_class=CustomCNN,
+            features_extractor_class=CustomFeatureExtractor,
             features_extractor_kwargs=dict(map_emb_dim=config.map_emb_dim),
+            net_arch=[*config.net_arch_shared_layers,
+                      dict(
+                          vf=config.net_arch_vf,
+                          pi=config.net_arch_pi
+                      )]
         )
 
-        model = PPO("MlpPolicy",
-                    env,
+        model = PPO(CustomActorCriticPolicy,
+                    env,  # sets observation & action space
                     verbose=1,
                     tensorboard_log="./lux_tensorboard/",
                     learning_rate=config.learning_rate,
@@ -97,8 +104,9 @@ def train(config):
                     policy_kwargs=policy_kwargs
                     )
 
-    callbacks = []
+    # --- END INIT MODEL ---
 
+    callbacks = []
     # Save a checkpoint every 100K steps
     callbacks.append(
         CheckpointCallback(save_freq=100000,
@@ -111,7 +119,7 @@ def train(config):
     if config.n_envs > 1:
         # An evaluation environment is needed to measure multi-env setups. Use a fixed 4 envs.
         env_eval = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
-                                                          learning_agent=AgentPolicy(mode="train"),
+                                                          learning_agent=AgentHead(mode="train"),
                                                           opponent_agent=opponent), i) for i in range(4)])
 
         callbacks.append(
