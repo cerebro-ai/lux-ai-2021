@@ -231,9 +231,9 @@ class AgentPolicy(AgentWithModel):
             partial(MoveAction, direction=Constants.DIRECTIONS.WEST),
             partial(MoveAction, direction=Constants.DIRECTIONS.SOUTH),
             partial(MoveAction, direction=Constants.DIRECTIONS.EAST),
-            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.CART),
+            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.CART),  # TODO Add action here
             # Transfer to nearby cart
-            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER),
+            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER), # TODO Add action here
             # Transfer to nearby worker
             SpawnCityAction,
             PillageAction,
