@@ -186,8 +186,9 @@ def get_game_state_matrix(game_state: Game, team):
     :return: Numpy array of shape (1x5)
     """
     current_step = game_state.state['turn']
-    days_until_night = (current_step % 40)
+    days_until_night = 30 - (current_step % 40)
     is_night = 1 if (current_step % 40) > 30 else 0
+    night_days_left = (current_step % 40) - 30 if (current_step % 40) > 30 else 0
     team_cities = 0
     enemy_cities = 0
     for _, city in game_state.cities.items():
@@ -212,7 +213,7 @@ def get_game_state_matrix(game_state: Game, team):
     enemy_coal = game_state.stats['teamStats'][(team + 1) % 2]['resourcesCollected']['coal']
     enemy_uranium = game_state.stats['teamStats'][(team + 1) % 2]['resourcesCollected']['uranium']
 
-    return np.array([current_step, days_until_night, is_night, team_cities, enemy_cities, team_citytiles,
+    return np.array([current_step, days_until_night, is_night, night_days_left, team_cities, enemy_cities, team_citytiles,
                      enemy_citytiles, team_workers, enemy_workers, team_carts, enemy_carts, team_total_fuel,
                      enemy_total_fuel, team_research_points, enemy_research_points, team_wood, team_coal,
                      team_uranium, enemy_wood, enemy_coal, enemy_uranium])
@@ -253,7 +254,7 @@ class AgentPolicy(AgentWithModel):
         ]
         self.action_space = spaces.Discrete(max(len(self.actions_units), len(self.actions_cities)))
 
-        self.observation_shape = 32 * 32 * 18 + 23,
+        self.observation_shape = 32 * 32 * 18 + 22,
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
