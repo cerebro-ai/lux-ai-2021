@@ -197,7 +197,7 @@ def get_game_state_matrix(game_state: Game, team):
 ########################################################################################################################
 # This is the Agent that you need to design for the competition
 ########################################################################################################################
-class AgentHead(AgentWithModel):
+class AgentPolicy(AgentWithModel):
     def __init__(self, mode="train", model=None) -> None:
         """
         Arguments:

@@ -10,7 +10,7 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback,
 from stable_baselines3.common.utils import set_random_seed, get_schedule_fn
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from agent_head import AgentHead
+from agent_policy import AgentPolicy
 from luxai2021.env.agent import Agent
 from luxai2021.env.lux_env import LuxEnvironment
 from luxai2021.game.constants import LuxMatchConfigs_Default
@@ -53,7 +53,7 @@ def train(config: ParamConfigurator):
     opponent = Agent()
 
     # Create a RL agent in training mode
-    player = AgentHead(mode="train")
+    player = AgentPolicy(mode="train")
 
     # Train the model
     env_eval = None
@@ -63,7 +63,7 @@ def train(config: ParamConfigurator):
                              opponent_agent=opponent)
     else:
         env = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
-                                                     learning_agent=AgentHead(mode="train"),
+                                                     learning_agent=AgentPolicy(mode="train"),
                                                      opponent_agent=opponent), i) for i in range(config.n_envs)])
 
     run_id = config.id
@@ -119,7 +119,7 @@ def train(config: ParamConfigurator):
     if config.n_envs > 1:
         # An evaluation environment is needed to measure multi-env setups. Use a fixed 4 envs.
         env_eval = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
-                                                          learning_agent=AgentHead(mode="train"),
+                                                          learning_agent=AgentPolicy(mode="train"),
                                                           opponent_agent=opponent), i) for i in range(4)])
 
         callbacks.append(
