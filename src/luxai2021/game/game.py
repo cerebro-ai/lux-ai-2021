@@ -1010,7 +1010,7 @@ class Game:
         def revert_action(action):
             # reverts a given action such that cellsToActionsToThere has no collisions due to action and all related actions
             self.log(
-                f"turn {{self.state['turn']}} Unit {{action.unit_id}} collided when trying to move {{action.direction}} to ({{action.newcell.pos.x}}, {{action.newcell.pos.y}})")
+                f"turn {self.state['turn']} Unit {action.unit_id} collided when trying to move {action.direction} to ({action.newcell.pos.x}, {action.newcell.pos.y})")
 
             original_cell = self.map.get_cell_by_pos(
                 self.get_unit(action.team, action.unit_id).pos
