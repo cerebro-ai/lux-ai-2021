@@ -9,7 +9,7 @@ from torch import nn
 # TODO Update
 MAP_PLANES = 18
 MAP_SIZE = 32 * 32 * MAP_PLANES
-GAME_SIZE = 23
+GAME_SIZE = 22
 UNIT_SIZE = 5
 ACTION_SIZE = 10
 
