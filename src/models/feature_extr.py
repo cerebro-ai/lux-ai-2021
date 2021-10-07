@@ -10,8 +10,8 @@ from torch import nn
 MAP_PLANES = 18
 MAP_SIZE = 32 * 32 * MAP_PLANES
 GAME_SIZE = 22
-UNIT_SIZE = 5
-ACTION_SIZE = 10
+UNIT_SIZE = 0
+ACTION_SIZE = 0
 
 TOTAL_SIZE = MAP_SIZE + GAME_SIZE # + UNIT_SIZE + ACTION_SIZE
 
@@ -51,12 +51,12 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         # get the first part which is the map flattened
-        map_flattened: th.Tensor = observations[:MAP_SIZE]
-        game_state = observations[MAP_SIZE:MAP_SIZE + GAME_SIZE]
-        unit_state = observations[MAP_SIZE + GAME_SIZE: MAP_SIZE + GAME_SIZE + UNIT_SIZE]
-        action_mask = observations[-ACTION_SIZE:]
+        map_flattened: th.Tensor = th.narrow(observations, 1, 0, MAP_SIZE)
+        game_state = th.narrow(observations, 1, MAP_SIZE, GAME_SIZE)
+        unit_state = th.narrow(observations, 1, MAP_SIZE + GAME_SIZE, UNIT_SIZE)
+        action_mask = th.narrow(observations, 1, MAP_SIZE + GAME_SIZE + UNIT_SIZE, ACTION_SIZE)
 
-        map_state = map_flattened.view(MAP_PLANES, self.map_height, self.map_height)
+        map_state = map_flattened.view((int(MAP_PLANES), int(self.map_height), int(self.map_height)))
 
         map_embedding = self.cnn(map_state)
 
