@@ -1,5 +1,5 @@
-from typing import Tuple
-from typing import Dict, List, Tuple, Type, Union
+# from typing import Tuple
+# from typing import Dict, List, Tuple, Type, Union
 from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
 import torch as th
@@ -37,9 +37,9 @@ class CustomMlpExtractor(MlpExtractor):
     def __init__(
             self,
             feature_dim: int,
-            net_arch: List[Union[int, Dict[str, List[int]]]],
-            activation_fn: Type[nn.Module],
-            device: Union[th.device, str] = "auto",
+            net_arch,  # removed: : List[Union[int, Dict[str, List[int]]]]
+            activation_fn,  # removed:  Type[nn.Module]
+            device="auto",  # removed: : Union[th.device, str]
     ):
         super(CustomMlpExtractor, self).__init__(
             feature_dim=feature_dim,
@@ -48,7 +48,7 @@ class CustomMlpExtractor(MlpExtractor):
             device=device
         )
 
-    def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
+    def forward(self, features: th.Tensor):  # removed -> Tuple[th.Tensor, th.Tensor]:
         """
         :return: latent_policy, latent_value of the specified network.
         If all layers are shared, then ``latent_policy == latent_value``
@@ -105,7 +105,7 @@ class CustomNetwork(nn.Module):
             nn.Linear(feature_dim, last_layer_dim_vf), nn.ReLU()
         )
 
-    def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
+    def forward(self, features: th.Tensor):  # removed -> Tuple[th.Tensor, th.Tensor]:
         """
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
             If all layers are shared, then ``latent_policy == latent_value``

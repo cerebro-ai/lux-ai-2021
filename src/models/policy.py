@@ -1,5 +1,5 @@
-from collections import Callable
-from typing import Optional, List, Union, Dict, Type
+# from collections import Callable
+# from typing import Optional, List, Union, Dict, Type
 
 import gym
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -13,9 +13,9 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
             self,
             observation_space: gym.spaces.Space,
             action_space: gym.spaces.Space,
-            lr_schedule: Callable[[float], float],
-            net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
-            activation_fn: Type[nn.Module] = nn.Tanh,
+            lr_schedule,  # removed Callable[[float], float],
+            net_arch=None,  # removed: : Optional[List[Union[int, Dict[str, List[int]]]]]
+            activation_fn=nn.Tanh,
             *args,
             **kwargs,
     ):
