@@ -123,24 +123,6 @@ def append_position_layer(game_state_matrix: np.ndarray, entity) -> np.ndarray:
 def create_map_state_matrix(game_state: Game) -> np.ndarray:
     """
     Creates a (map height x map width x 17) matrix representing the current map state.
-    The map is encoded in the following way:
-        0. Wood (float)
-        1. Coal (float)
-        2. Uranium (float)
-        3. own_city_tile
-        4. enemy_city_tile
-        5. city_cooldown
-        6. fuel city
-        7. own_worker
-        8. enemy_worker
-        9. own_cart
-       10. enemy_cart
-       11. cargo.wood
-       12. cargo.coal
-       13. cargo.uranium
-       14. unit_cooldown (shared across worker & cart)
-       15. road_lvl (float)
-       16. is_valid_map (this is needed because we pad to 32x32)
     :param game_state: current lux.game.Game object
     :return: np.ndarray containing the encoded map state
     """
@@ -203,24 +185,13 @@ def get_game_state_matrix(game_state: Game, team):
     :param game_state:
     :return: Numpy array of shape (1x5)
     """
-    current_step = game_state.turn
-    wood = 0
-    coal = 0
-    uranium = 0
-    night = 1 if (game_state.turn % 40) > 30 else 0
-    for tile in find_all_resources(game_state):
-        if tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
-            wood += tile.resource.amount
-        elif tile.resource.type == Constants.RESOURCE_TYPES.COAL:
-            coal += tile.resource.amount
-        elif tile.resource.type == Constants.RESOURCE_TYPES.URANIUM:
-            uranium += tile.resource.amount
-        else:
-            # this should actually never happen
-            print("not recognised tile type", tile.resource.type)
-            pass
+    current_step = game_state.state['turn']
+    fuel_generated = game_state.stats['teamStats'][team]['fuelGenerated']
+    wood = game_state.stats['teamStats'][team]['resourcesCollected']['wood']
+    coal = game_state.stats['teamStats'][team]['resourcesCollected']['coal']
+    uranium = game_state.stats['teamStats'][team]['resourcesCollected']['uranium']
     research_points = game_state.state["teamStates"][team]["researchPoints"]
-    return np.array([current_step, night, wood, coal, uranium])
+    return np.array([current_step, fuel_generated, wood, coal, uranium, research_points])
 
 
 ########################################################################################################################
@@ -258,7 +229,7 @@ class AgentPolicy(AgentWithModel):
         ]
         self.action_space = spaces.Discrete(max(len(self.actions_units), len(self.actions_cities)))
 
-        self.observation_shape = (3 + 7 * 5 * 2 + 1 + 1 + 1 + 2 + 2 + 2 + 3,)
+        self.observation_shape = 32*32*18 + 6,
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
@@ -275,6 +246,34 @@ class AgentPolicy(AgentWithModel):
     def get_observation(self, game, unit, city_tile, team, is_new_turn):
         """
         Implements getting a observation from the current game for this unit or city
+        The map is encoded in the following way:
+        0. Wood (float)
+        1. Coal (float)
+        2. Uranium (float)
+        3. own_city_tile
+        4. enemy_city_tile
+        5. city_cooldown
+        6. fuel city
+        7. own_worker
+        8. enemy_worker
+        9. own_cart
+       10. enemy_cart
+       11. cargo.wood
+       12. cargo.coal
+       13. cargo.uranium
+       14. unit_cooldown (shared across worker & cart)
+       15. road_lvl (float)
+       16. is_valid_map (this is needed because we pad to 32x32)
+       17. location of the current worker bool
+       --> flatten: 18*32*32 = 18,432 parameter
+
+       + game_state parameter
+       18,433. current_step
+       18,434. fuel_generated
+       18,435. total wood
+       18,436. total coal
+       18,437. total uranium
+       18,438. total research_points
         """
         obs = create_map_state_matrix(game)
 
@@ -286,7 +285,7 @@ class AgentPolicy(AgentWithModel):
 
         obs = append_position_layer(obs, entity)
         obs = obs.flatten()
-        # obs = np.hstack(obs, get_game_state_matrix(game, team)) # TODO Fix bugs here
+        obs = np.hstack([obs, get_game_state_matrix(game, team)])
 
         return obs
 

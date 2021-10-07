@@ -7,13 +7,13 @@ import torch as th
 from torch import nn
 
 # TODO Update
-MAP_PLANES = 17
+MAP_PLANES = 18
 MAP_SIZE = 32 * 32 * MAP_PLANES
-GAME_SIZE = 2
+GAME_SIZE = 6
 UNIT_SIZE = 5
 ACTION_SIZE = 10
 
-TOTAL_SIZE = MAP_SIZE + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
+TOTAL_SIZE = MAP_SIZE + GAME_SIZE # + UNIT_SIZE + ACTION_SIZE
 
 
 class CustomCNN(BaseFeaturesExtractor):
