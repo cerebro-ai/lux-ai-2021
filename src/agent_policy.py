@@ -284,26 +284,26 @@ class AgentPolicy(AgentWithModel):
        --> flatten: 18*32*32 = 18,432 parameter
 
        + game_state parameter
-       18,433. current_step (int)
-       18,434. days_until_night int
-       18,435. is_night bool
-       18,436. night_days_left int
-       18,437. team_cities int
-       18,438. enemy_cities int
-       18,439. team_citytiles int
-       18,440. enemy_citytiles int
-       18,441. team_units int
-       18,442. enemy_units int
-       18,443. team_total_fuel int
-       18,444. enemy_total_fuel int
-       18,445. team_research_points int
-       18,446. enemy_research_points int
-       18,447. team_wood int
-       18,447. team_coal int
-       18.448. team_uranium int
-       18.449. enemy_wood int
-       18.450. enemy_coal int
-       18.451. enemy_uranium int
+       1. current_step (int)
+       2. days_until_night int
+       3. is_night bool
+       4. night_days_left int
+       5. team_cities int
+       6. enemy_cities int
+       7. team_citytiles int
+       8. enemy_citytiles int
+       9. team_units int
+       10. enemy_units int
+       11. team_total_fuel int
+       12. enemy_total_fuel int
+       13. team_research_points int
+       14. enemy_research_points int
+       15. team_wood int
+       16. team_coal int
+       17. team_uranium int
+       18. enemy_wood int
+       19. enemy_coal int
+       20. enemy_uranium int
        """
         obs = create_map_state_matrix(game)
 
