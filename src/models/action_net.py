@@ -4,7 +4,7 @@ from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
 import torch as th
 
-from constants import total_action_size
+total_action_size = 10
 
 
 class CustomMlpExtractor(MlpExtractor):

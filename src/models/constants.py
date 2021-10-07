@@ -4,7 +4,7 @@ map_channels = 18
 map_height = 32
 
 # state
-state_size = 5
+state_size = 6
 
 # unit
 unit_size = 4
