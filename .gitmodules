@@ -1,3 +1,3 @@
 [submodule "src/lux_python_env"]
 	path = src/lux_python_env
-	url = git@github.com:glmcdona/LuxPythonEnvGym.git
+	url = git@github.com:cerebro-ai/lux-python-env.git
