@@ -132,48 +132,56 @@ def create_map_state_matrix(game_state: Game) -> np.ndarray:
     resource_tiles = find_all_resources(game_state)
     for tile in resource_tiles:
         if tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
-            map_state[tile.pos.x][tile.pos.y][0] = tile.resource.amount
+            map_state[tile.pos.x][tile.pos.y][0] = tile.resource.amount / GAME_CONSTANTS["PARAMETERS"]["MAX_WOOD_AMOUNT"]
         elif tile.resource.type == Constants.RESOURCE_TYPES.COAL:
-            map_state[tile.pos.x][tile.pos.y][1] = tile.resource.amount
+            map_state[tile.pos.x][tile.pos.y][1] = tile.resource.amount / GAME_CONSTANTS["PARAMETERS"]["MAX_WOOD_AMOUNT"]
         else:
-            map_state[tile.pos.x][tile.pos.y][2] = tile.resource.amount
+            map_state[tile.pos.x][tile.pos.y][2] = tile.resource.amount / GAME_CONSTANTS["PARAMETERS"]["MAX_WOOD_AMOUNT"]
 
     for _, city in game_state.cities.items():
         if city.team == 0:
             for tile in city.city_cells:
                 map_state[tile.pos.x][tile.pos.y][3] = 1
-                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown
-                map_state[tile.pos.x][tile.pos.y][6] = city.fuel
+                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown / GAME_CONSTANTS["PARAMETERS"]["CITY_ACTION_COOLDOWN"]
+                map_state[tile.pos.x][tile.pos.y][6] = city.fuel  # TODO: Normalize?
         if city.team == 1:
             for tile in city.city_cells:
                 map_state[tile.pos.x][tile.pos.y][4] = 1
-                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown
-                map_state[tile.pos.x][tile.pos.y][6] = city.fuel
+                map_state[tile.pos.x][tile.pos.y][5] = tile.city_tile.cooldown / GAME_CONSTANTS["PARAMETERS"]["CITY_ACTION_COOLDOWN"]
+                map_state[tile.pos.x][tile.pos.y][6] = city.fuel  # TODO: Normalize?
 
     for unit in game_state.state["teamStates"][0]["units"].values():
         if unit.type == 0:
             map_state[unit.pos.x][unit.pos.x][7] += 1  # units can stack on a citytile
+            map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown / GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["WORKER"]
         elif unit.type == 1:
             map_state[unit.pos.x][unit.pos.x][9] += 1
-        map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood']
-        map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal']
-        map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium']
-        map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown
+            map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown / GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["CART"]
 
     for unit in game_state.state["teamStates"][1]["units"].values():
-        if unit.is_worker():
+        if unit.type == 0:
             map_state[unit.pos.x][unit.pos.x][8] += 1
-        elif unit.is_cart():
+            map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"]
+            map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown / GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["WORKER"]
+        elif unit.type == 1:
             map_state[unit.pos.x][unit.pos.x][10] += 1
-        map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood']
-        map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal']
-        map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium']
-        map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown
+            map_state[unit.pos.x][unit.pos.y][11] = unit.cargo['wood'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][12] = unit.cargo['coal'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][13] = unit.cargo['uranium'] / GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"]
+            map_state[unit.pos.x][unit.pos.y][14] = unit.cooldown / GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["CART"]
 
     for y in range(game_state.map.height):
         for x in range(game_state.map.width):
             cell = game_state.map.get_cell_by_pos(Position(x, y))
-            map_state[cell.pos.x][cell.pos.y][15] = cell.road
+            map_state[cell.pos.x][cell.pos.y][15] = cell.road / GAME_CONSTANTS["PARAMETERS"]["MAX_ROAD"]
             map_state[cell.pos.x][cell.pos.y][16] = 1  # is map cell
 
     map_padded = np.pad(map_state, [(pad_width,), (pad_width,), (0,)], mode="constant", constant_values=0)
@@ -185,10 +193,11 @@ def get_game_state_matrix(game_state: Game, team):
     :param game_state:
     :return: Numpy array of shape (1x5)
     """
-    current_step = game_state.state['turn']
-    days_until_night = 30 - (current_step % 40)
+    current_step = game_state.state['turn'] / GAME_CONSTANTS["PARAMETERS"]["MAX_DAYS"]
+    days_until_night = GAME_CONSTANTS["PARAMETERS"]["DAY_LENGTH"] - (current_step % 40) / \
+                       GAME_CONSTANTS["PARAMETERS"]["DAY_LENGTH"]
     is_night = 1 if (current_step % 40) > 30 else 0
-    night_days_left = (current_step % 40) - 30 if (current_step % 40) > 30 else 0
+    night_days_left = (current_step % 40) - 30 if (current_step % 40) > 30 else 0 / 10
     team_cities = 0
     enemy_cities = 0
     for _, city in game_state.cities.items():
