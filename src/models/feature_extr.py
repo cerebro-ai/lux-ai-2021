@@ -10,10 +10,10 @@ from torch import nn
 MAP_PLANES = 18
 MAP_SIZE = 32 * 32 * MAP_PLANES
 GAME_SIZE = 22
-UNIT_SIZE = 0
+UNIT_SIZE = 3
 ACTION_SIZE = 0
 
-TOTAL_SIZE = MAP_SIZE + GAME_SIZE # + UNIT_SIZE + ACTION_SIZE
+TOTAL_SIZE = MAP_SIZE + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
 
 
 class CustomFeatureExtractor(BaseFeaturesExtractor):

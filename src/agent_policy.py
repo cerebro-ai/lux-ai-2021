@@ -325,18 +325,28 @@ class AgentPolicy(AgentWithModel):
        21. enemy_wood int
        22. enemy_coal int
        23. enemy_uranium int
+
+       unit state
+       1. is_worker bool
+       2. is_cart bool
+       3. is_city bool
        """
         obs = create_map_state_matrix(game)
-
+        unit_state = np.zeros(3)
         entity = None
         if unit is not None:
             entity = unit
+            if unit.type == 0:
+                unit_state[0] = 1
+            else:
+                unit_state[1] = 1
         else:
             entity = city_tile
+            unit_state[2] = 1
 
         obs = append_position_layer(obs, entity)
         obs = obs.flatten()
-        obs = np.hstack([obs, get_game_state_matrix(game, team)])
+        obs = np.hstack([obs, get_game_state_matrix(game, team), unit_state])
 
         return obs
 
