@@ -128,3 +128,4 @@ dmypy.json
 .pyre/
 
 lux_tensorboard/
+log.txt
