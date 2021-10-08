@@ -112,7 +112,7 @@ class CustomNetwork(nn.Module):
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
             If all layers are shared, then ``latent_policy == latent_value``
         """
-        embedding = features[:-total_action_size]
+        embedding = features[:-total_action_size]  # TODO should be replaced by th.narrow(observations, 1, MAP_SIZE, GAME_SIZE)
         action_mask = features[-total_action_size:]
 
         value = self.value_net(embedding)
