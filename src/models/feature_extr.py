@@ -5,6 +5,7 @@ import torch
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch as th
 from torch import nn
+from src.models.base_nets.InceptionNet import InceptionNet_v1
 
 # TODO Update
 MAP_PLANES = 18
@@ -33,16 +34,10 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
         self.map_height = math.sqrt(MAP_SIZE // MAP_PLANES)
         self.map_emb_dim = map_emb_dim
 
-        self.cnn = nn.Sequential(
-            nn.Conv2d(MAP_PLANES, 32, kernel_size=5, stride=2, padding=0),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=0),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
+        self.cnn = InceptionNet_v1(MAP_PLANES)
 
         self.linear = nn.Sequential(
-            nn.Linear(2304, map_emb_dim),
+            nn.Linear(self.cnn.output_size, map_emb_dim),
             nn.ReLU()
         )
 

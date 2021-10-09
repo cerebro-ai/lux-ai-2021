@@ -104,7 +104,7 @@ class InceptionNet_v1(nn.Module):
         self.avgpool = nn.AvgPool2d(kernel_size=2, stride=1)
         self.dropout = nn.Dropout2d(p=0.4)
 
-        self.output_size = 4608
+        self.output_size = 2592
 
     def forward(self, x):
         x = self.conv1(x)
