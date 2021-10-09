@@ -13,9 +13,9 @@ setup(
     description='Code for Lux AI 2021 Kaggle competition using RL with networks',
     long_description=open('README.md').read(),
     install_requires=[
-            "gym",
+            "gym==0.19.0",
             "numpy",
-            "stable_baselines3"
+            "stable_baselines3==1.2.1a2",
     ]
 )
 
