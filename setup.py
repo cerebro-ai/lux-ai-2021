@@ -5,25 +5,23 @@ from setuptools import setup, find_packages
 setup(
     name='luxai2021',
     version='0.1.0',
-    author='Geoff McDonald',
-    author_email='glmcdona@gmail.com',
+    author='Cerebro AI',
+    author_email='-',
     packages=find_packages(exclude=['tests*']),
-    url='http://pypi.python.org/pypi/luxai2021/',
+    url='https://github.com/cerebro-ai/lux-ai-2021',
     license='MIT',
-    description='Matching python environment code for Lux AI 2021 Kaggle competition and a gym interface for RL models',
+    description='Code for Lux AI 2021 Kaggle competition using RL with networks',
     long_description=open('README.md').read(),
     install_requires=[
-        "pytest",
-        "stable_baselines3==1.2.1a2",
-        "numpy",
-        "tensorboard",
-        "gym==0.19.0"
-    ],
-    package_data={'luxai2021': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
-    test_suite='nose2.collector.collector',
-    tests_require=['nose2'],
+            "gym",
+            "numpy",
+            "torch",
+            "torchsummary",
+            "stable_baselines3",
+            "pyyaml",
+            "tensorboard"
+    ]
 )
-
 
 if sys.version_info < (3,7) or sys.version_info >= (3,8):
     os.system("")
