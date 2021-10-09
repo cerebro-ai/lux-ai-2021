@@ -1,7 +1,8 @@
+import sys
+sys.path.append('lux_python_env/')
 import argparse
 import glob
 import os
-import sys
 import random
 from typing import Callable
 
