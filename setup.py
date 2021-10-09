@@ -15,11 +15,7 @@ setup(
     install_requires=[
             "gym",
             "numpy",
-            "torch",
-            "torchsummary",
-            "stable_baselines3",
-            "pyyaml",
-            "tensorboard"
+            "stable_baselines3"
     ]
 )
 
