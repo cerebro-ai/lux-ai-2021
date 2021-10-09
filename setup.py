@@ -10,7 +10,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     url='https://github.com/cerebro-ai/lux-ai-2021',
     license='MIT',
-    description='Code for Lux AI 2021 Kaggle competition using RL with networks',
+    description='Code for Lux AI 2021 Kaggle competition using Deep Multi Agent RL',
     long_description=open('README.md').read(),
     install_requires=[
             "gym==0.19.0",
