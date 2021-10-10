@@ -377,7 +377,7 @@ class AgentPolicy(AgentWithModel):
         ]
         self.action_space = spaces.Discrete(max(len(self.actions_units), len(self.actions_cities)))
 
-        self.observation_shape = 32 * 32 * 18 + 22 + 3,
+        self.observation_shape = 32 * 32 * 18 + 22 + 3 + 12,
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
