@@ -1,34 +1,65 @@
 import configparser
+from dataclasses import dataclass
 import random
+from typing import Union, List
+
 import yaml
 import pathlib
 
 default_config = pathlib.Path(__file__).parent.joinpath('config.yaml')
 
 
-class ParamConfigurator:
-    """Parameter configurator class."""
+@dataclass
+class HyperparamsTraining:
+    learning_rate: float
+    gamma: float
+    gae_lambda: float
+    batch_size: int
+    step_count: int
+    n_steps: int
+    n_envs: int
+    path: Union[str, pathlib.Path] = None
+    id: str = str(random.randint(0, 10000))
 
-    def __init__(self):
-        with default_config.open("r") as f:
-            self.config = yaml.safe_load(f)
 
-        # training
-        self.id = str(random.randint(0, 10000))
-        self.learning_rate = self.config['training']['learning_rate']
-        self.gamma = self.config['training']['gamma']
-        self.gae_lambda = self.config['training']['gae_lambda']
-        self.batch_size = self.config['training']['batch_size']
-        self.step_count = self.config['training']['step_count']
-        self.n_steps = self.config['training']['n_steps']
-        self.path = None
-        self.n_envs = self.config['training']['n_envs']
+@dataclass
+class HyperparamsModel:
+    map_emb_dim: int
+    net_arch_shared_layers: List[int]
+    net_arch_pi: List[int]
+    net_arch_vf: List[int]
 
-        # model
-        self.map_emb_dim = self.config['models']['map_emb_dim']
-        self.net_arch_shared_layers = self.config["models"]["net_arch_shared_layers"]
-        self.net_arch_pi = self.config["models"]["net_arch_pi"]
-        self.net_arch_vf = self.config["models"]["net_arch_vf"]
+
+@dataclass()
+class Hyperparams:
+    training: HyperparamsTraining
+    model: HyperparamsModel
+
+    @staticmethod
+    def load(source: Union[dict, str]):
+        if isinstance(source, dict):
+            params = {
+                "training": HyperparamsTraining(**source["training"]),
+                "model": HyperparamsModel(**source["model"])
+            }
+            return Hyperparams(**params)
+        else:
+            if pathlib.Path(source).exists():
+                with open(source, "r") as f:
+                    params = yaml.safe_load(f)
+                    params = {
+                        "training": HyperparamsTraining(**params["training"]),
+                        "model": HyperparamsModel(**params["model"])
+                    }
+                    return Hyperparams(**params)
+            else:
+                params = yaml.safe_load(source)
+                params = {
+                    "training": HyperparamsTraining(**params["training"]),
+                    "model": HyperparamsModel(**params["model"])
+                }
+                return Hyperparams(**params)
+
 
 
 if __name__ == '__main__':
