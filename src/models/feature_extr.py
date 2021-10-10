@@ -43,7 +43,7 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
     @property
     def features_dim(self) -> int:
-        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
+        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE  # + ACTION_SIZE @rkstgr schau mal aber ich glaube das muss hier raus
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         # get the first part which is the map flattened
