@@ -1,5 +1,4 @@
 import sys
-sys.path.append('lux_python_env/')
 import argparse
 import glob
 import os
@@ -12,9 +11,9 @@ from stable_baselines3.common.utils import set_random_seed, get_schedule_fn
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from agent_policy import AgentPolicy
-from lux_python_env.luxai2021.env.agent import Agent
-from lux_python_env.luxai2021.env.lux_env import LuxEnvironment
-from lux_python_env.luxai2021.game.constants import LuxMatchConfigs_Default
+from luxpythonenv.env.agent import Agent
+from luxpythonenv.env.lux_env import LuxEnvironment
+from luxpythonenv.game.constants import LuxMatchConfigs_Default
 
 from config import ParamConfigurator
 
