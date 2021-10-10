@@ -10,12 +10,12 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback,
 from stable_baselines3.common.utils import set_random_seed, get_schedule_fn
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from agent_policy import AgentPolicy
+from luxai21.agent_policy import AgentPolicy
 from luxpythonenv.env.agent import Agent
 from luxpythonenv.env.lux_env import LuxEnvironment
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 
-from config import ParamConfigurator
+from luxai21.config import ParamConfigurator
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
 from luxai21.models.feature_extr import CustomFeatureExtractor
