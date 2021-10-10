@@ -1,15 +1,19 @@
 import configparser
 import random
 import yaml
+import pathlib
+
+default_config = pathlib.Path(__file__).parent.joinpath('config.yaml')
 
 
 class ParamConfigurator:
     """Parameter configurator class."""
 
     def __init__(self):
-        with open("config.yaml") as f:
+        with default_config.open("r") as f:
             self.config = yaml.safe_load(f)
 
+        # training
         self.id = str(random.randint(0, 10000))
         self.learning_rate = self.config['training']['learning_rate']
         self.gamma = self.config['training']['gamma']
