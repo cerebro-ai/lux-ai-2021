@@ -70,7 +70,8 @@ class CustomMlpExtractor(MlpExtractor):
             action_mask = torch.ones_like(action_logits, dtype=torch.bool)
 
         # set logits of illegal actions to -inf
-        masked_action_logits = action_logits.masked_fill(~action_mask, float("-inf"))
+        action_mask = th.narrow(action_mask, 1, 0, action_logits.shape[1])
+        masked_action_logits = action_logits.masked_fill(~action_mask.to(th.bool), float("-inf"))
 
         return action_logits, value
 

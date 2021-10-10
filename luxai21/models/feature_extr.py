@@ -12,7 +12,7 @@ MAP_PLANES = 18
 MAP_SIZE = 32 * 32 * MAP_PLANES
 GAME_SIZE = 22
 UNIT_SIZE = 3
-ACTION_SIZE = 0
+ACTION_SIZE = 12
 
 TOTAL_SIZE = MAP_SIZE + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
 
@@ -43,7 +43,7 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
     @property
     def features_dim(self) -> int:
-        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE + ACTION_SIZE
+        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE  # + ACTION_SIZE @rkstgr schau mal aber ich glaube das muss hier raus
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         # get the first part which is the map flattened
