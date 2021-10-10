@@ -276,12 +276,16 @@ def get_action_mask(game, team, city_tile, unit):
 
         # b. Check if there is a opponent city or worker at a adjacent location
         def check_cell_for_opponent_units(cell, direction, action_mask, team):
+            if cell is None:
+                action_mask[direction] = 0
+                return action_mask
+
             if cell.is_city_tile():
                 if cell.city_tile.team != team:
                     action_mask[direction] = 0
             if cell.has_units():
                 units = cell.units
-                for unit in units:
+                for _, unit in units.items():
                     if unit.team != team:
                         action_mask[direction] = 0
             return action_mask
@@ -304,8 +308,8 @@ def get_action_mask(game, team, city_tile, unit):
         adjacent_cells = game.map.get_adjacent_cells(unit)
         for cell in adjacent_cells:
             if cell.has_units():
-                units = cell.units()
-                for unit in units:
+                units = cell.units
+                for _, unit in units.items():
                     # Check if unit in team
                     if unit.team == team:
                         # a. Check if worker nearby
