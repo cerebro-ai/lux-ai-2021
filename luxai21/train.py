@@ -11,7 +11,7 @@ from luxpythonenv.env.agent import Agent
 from luxpythonenv.env.lux_env import LuxEnvironment
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 
-from luxai21.config import ParamConfigurator, Hyperparams, default_config
+from luxai21.config import Hyperparams, default_config
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
 from luxai21.models.feature_extr import CustomFeatureExtractor
