@@ -240,6 +240,108 @@ def get_game_state_matrix(game_state: Game, team):
                      team_uranium, enemy_wood, enemy_coal, enemy_uranium])
 
 
+def get_action_mask(game, team, city_tile, unit):
+    """
+    cart + worker:
+        0. partial(MoveAction, direction=Constants.DIRECTIONS.CENTER),  # This is the do-nothing action
+        1. partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),
+        2. partial(MoveAction, direction=Constants.DIRECTIONS.WEST),
+        3. partial(MoveAction, direction=Constants.DIRECTIONS.SOUTH),
+        4. partial(MoveAction, direction=Constants.DIRECTIONS.EAST),
+        5. partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.CART), # Transfer to nearby cart
+        6. partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER), # Transfer to nearby worker
+    worker:
+        7. SpawnCityAction,
+        8. PillageAction,
+    city action:
+        9. SpawnWorkerAction,
+        10. SpawnCartAction,
+        11. ResearchAction,
+    """
+    action_mask = np.ones(12)
+    if unit is not None:
+        action_mask[9:] = 0
+
+        # 1. Check moving actions
+        # a. Check if unit at the edge
+        if unit.pos.x == 0:
+            action_mask[2] = 0
+        elif unit.pos.x == game.map.width:
+            action_mask[4] = 0
+
+        if unit.pos.y == 0:
+            action_mask[1] = 0
+        elif unit.pos.y == game.map.height:
+            action_mask[3] = 0
+
+        # b. Check if there is a opponent city or worker at a adjacent location
+        def check_cell_for_opponent_units(cell, direction, action_mask, team):
+            if cell.is_city_tile():
+                if cell.city_tile.team != team:
+                    action_mask[direction] = 0
+            if cell.has_units():
+                units = cell.units
+                for unit in units:
+                    if unit.team != team:
+                        action_mask[direction] = 0
+            return action_mask
+        # NORTH
+        cell = game.map.get_cell(unit.pos.x, unit.pos.y - 1)
+        action_mask = check_cell_for_opponent_units(cell, 1, action_mask, team)
+        # EAST
+        cell = game.map.get_cell(unit.pos.x - 1, unit.pos.y)
+        action_mask = check_cell_for_opponent_units(cell, 4, action_mask, team)
+        # SOUTH
+        cell = game.map.get_cell(unit.pos.x, unit.pos.y + 1)
+        action_mask = check_cell_for_opponent_units(cell, 3, action_mask, team)
+        # WEST
+        cell = game.map.get_cell(unit.pos.x + 1, unit.pos.y)
+        action_mask = check_cell_for_opponent_units(cell, 2, action_mask, team)
+
+        # 2. Check if transfer possible
+        action_mask[5] = 0
+        action_mask[6] = 0
+        adjacent_cells = game.map.get_adjacent_cells(unit)
+        for cell in adjacent_cells:
+            if cell.has_units():
+                units = cell.units()
+                for unit in units:
+                    # Check if unit in team
+                    if unit.team == team:
+                        # a. Check if worker nearby
+                        if unit.type == 0:
+                            action_mask[6] = 1
+                        # b. Check if cart nearby
+                        else:
+                            action_mask[5] = 1
+
+        # 3. Check if possible to build citytile
+        # a. check if worker
+        if unit.type == 1:
+            action_mask[7] = 0
+        else:
+            # b. Enough resources
+            if unit.cargo['wood'] + unit.cargo['coal'] + unit.cargo['uranium'] < 100:
+                action_mask[7] = 0
+
+            # c. tile empty
+            cell = game.map.get_cell_by_pos(unit.pos)
+            if cell.has_resource():
+                action_mask[7] = 0
+            elif cell.is_city_tile():
+                action_mask[7] = 0
+
+        # 4. Check if pillage possible
+        # a. Check if unit is worker
+        if unit.type == 1:
+            action_mask[8] = 0
+
+    if city_tile is not None:
+        action_mask[:9] = 0
+
+    return action_mask
+
+
 ########################################################################################################################
 # This is the Agent that you need to design for the competition
 ########################################################################################################################
@@ -267,7 +369,7 @@ class AgentPolicy(AgentWithModel):
             # Transfer to nearby worker
             SpawnCityAction,
             PillageAction,
-        ]
+        ] # TODO split action space between worker and cart
         self.actions_cities = [
             SpawnWorkerAction,
             SpawnCartAction,
@@ -358,7 +460,10 @@ class AgentPolicy(AgentWithModel):
 
         obs = append_position_layer(obs, entity)
         obs = obs.flatten()
-        obs = np.hstack([obs, get_game_state_matrix(game, team), unit_state])
+        game_state = get_game_state_matrix(game, team)
+        action_mask = get_action_mask(game, team, city_tile, unit)
+
+        obs = np.hstack([obs, game_state, unit_state, action_mask])
 
         return obs
 
