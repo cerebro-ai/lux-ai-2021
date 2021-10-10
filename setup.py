@@ -3,10 +3,10 @@ import os
 from setuptools import setup, find_packages
 
 setup(
-    name='luxai2021',
+    name='luxai21',
     version='0.1.0',
-    author='Geoff McDonald',
-    author_email='glmcdona@gmail.com',
+    author='Cerebro AI',
+    author_email='-',
     packages=find_packages(exclude=['tests*']),
     url='http://pypi.python.org/pypi/luxai2021/',
     license='MIT',

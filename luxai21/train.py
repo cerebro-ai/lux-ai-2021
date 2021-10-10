@@ -18,8 +18,8 @@ from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from config import ParamConfigurator
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
-from src.models.feature_extr import CustomFeatureExtractor
-from src.models.policy import CustomActorCriticPolicy
+from luxai21.models.feature_extr import CustomFeatureExtractor
+from luxai21.models.policy import CustomActorCriticPolicy
 
 
 def make_env(local_env, rank, seed=0):
