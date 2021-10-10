@@ -20,7 +20,7 @@ setup(
         "stable_baselines3",
         "pyyaml",
         "tensorboard",
-        "luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
+        #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
     package_data={'luxai2021': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
     test_suite='nose2.collector.collector',
