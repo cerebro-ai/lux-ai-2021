@@ -13,11 +13,14 @@ setup(
     description='Matching python environment code for Lux AI 2021 Kaggle competition and a gym interface for RL models',
     long_description=open('README.md').read(),
     install_requires=[
-        "pytest",
-        "stable_baselines3==1.2.1a2",
+        "gym",
         "numpy",
+        "torch",
+        "torchsummary",
+        "stable_baselines3",
+        "pyyaml",
         "tensorboard",
-        "gym==0.19.0"
+        "git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
     package_data={'luxai2021': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
     test_suite='nose2.collector.collector',
