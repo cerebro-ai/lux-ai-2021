@@ -5,3 +5,4 @@ torchsummary
 stable_baselines3
 pyyaml
 tensorboard
+git+ssh://git@github.com:cerebro-ai/lux-python-env.git

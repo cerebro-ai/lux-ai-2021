@@ -5,7 +5,7 @@ import torch
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch as th
 from torch import nn
-from src.models.base_nets.InceptionNet import InceptionNet_v1
+from luxai21.models.base_nets.InceptionNet import InceptionNet_v1
 
 # TODO Update
 MAP_PLANES = 18

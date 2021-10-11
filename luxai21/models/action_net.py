@@ -5,7 +5,7 @@ from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
 import torch as th
 
-from src.models.feature_extr import ACTION_SIZE
+from luxai21.models.feature_extr import ACTION_SIZE
 
 
 class CustomMlpExtractor(MlpExtractor):

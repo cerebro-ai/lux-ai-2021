@@ -1,26 +1,21 @@
-import sys
-sys.path.append('lux_python_env/')
-import argparse
 import glob
 import os
-import random
-from typing import Callable
 
 from stable_baselines3 import PPO  # pip install stable-baselines3
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback
 from stable_baselines3.common.utils import set_random_seed, get_schedule_fn
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from agent_policy import AgentPolicy
-from lux_python_env.luxai2021.env.agent import Agent
-from lux_python_env.luxai2021.env.lux_env import LuxEnvironment
-from lux_python_env.luxai2021.game.constants import LuxMatchConfigs_Default
+from luxai21.agent_policy import AgentPolicy
+from luxpythonenv.env.agent import Agent
+from luxpythonenv.env.lux_env import LuxEnvironment
+from luxpythonenv.game.constants import LuxMatchConfigs_Default
 
-from config import ParamConfigurator
+from luxai21.config import Hyperparams, default_config
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
-from src.models.feature_extr import CustomFeatureExtractor
-from src.models.policy import CustomActorCriticPolicy
+from luxai21.models.feature_extr import CustomFeatureExtractor
+from luxai21.models.policy import CustomActorCriticPolicy
 
 
 def make_env(local_env, rank, seed=0):
@@ -40,7 +35,7 @@ def make_env(local_env, rank, seed=0):
     return _init
 
 
-def train(config: ParamConfigurator):
+def train(config: Hyperparams):
     """
     The main training loop
     :param config: (ParamConfigurator) The parameters from the config
@@ -58,38 +53,38 @@ def train(config: ParamConfigurator):
 
     # Train the model
     env_eval = None
-    if config.n_envs == 1:
+    if config.training.n_envs == 1:
         env = LuxEnvironment(configs=configs,
                              learning_agent=player,
                              opponent_agent=opponent)
     else:
         env = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
                                                      learning_agent=AgentPolicy(mode="train"),
-                                                     opponent_agent=opponent), i) for i in range(config.n_envs)])
+                                                     opponent_agent=opponent), i) for i in range(config.training.n_envs)])
 
-    run_id = config.id
+    run_id = config.training.id
     print("Run id %s" % run_id)
 
     # --- START INIT MODEL ---
 
-    if config.path:
+    if config.training.path:
         # by default previous model params are used (lr, batch size, gamma...)
-        model = PPO.load(config.path)
+        model = PPO.load(config.training.path)
         model.set_env(env=env)
 
         # Update the learning rate
-        model.lr_schedule = get_schedule_fn(config.learning_rate)
+        model.lr_schedule = get_schedule_fn(config.training.learning_rate)
 
         # TODO: Update other training parameters
     else:
 
         policy_kwargs = dict(
             features_extractor_class=CustomFeatureExtractor,
-            features_extractor_kwargs=dict(map_emb_dim=config.map_emb_dim),
-            net_arch=[*config.net_arch_shared_layers,
+            features_extractor_kwargs=dict(map_emb_dim=config.model.map_emb_dim),
+            net_arch=[*config.model.net_arch_shared_layers,
                       dict(
-                          vf=config.net_arch_vf,
-                          pi=config.net_arch_pi
+                          vf=config.model.net_arch_vf,
+                          pi=config.model.net_arch_pi
                       )]
         )
 
@@ -97,11 +92,11 @@ def train(config: ParamConfigurator):
                     env,  # sets observation & action space
                     verbose=1,
                     tensorboard_log="./lux_tensorboard/",
-                    learning_rate=config.learning_rate,
-                    gamma=config.gamma,
-                    gae_lambda=config.gae_lambda,
-                    batch_size=config.batch_size,
-                    n_steps=config.n_steps,
+                    learning_rate=config.training.learning_rate,
+                    gamma=config.training.gamma,
+                    gae_lambda=config.training.gae_lambda,
+                    batch_size=config.training.batch_size,
+                    n_steps=config.training.n_steps,
                     policy_kwargs=policy_kwargs
                     )
 
@@ -117,7 +112,7 @@ def train(config: ParamConfigurator):
 
     # Since reward metrics don't work for multi-environment setups, we add an evaluation logger
     # for metrics.
-    if config.n_envs > 1:
+    if config.training.n_envs > 1:
         # An evaluation environment is needed to measure multi-env setups. Use a fixed 4 envs.
         env_eval = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
                                                           learning_agent=AgentPolicy(mode="train"),
@@ -126,16 +121,16 @@ def train(config: ParamConfigurator):
         callbacks.append(
             EvalCallback(env_eval, best_model_save_path=f'./logs_{run_id}/',
                          log_path=f'./logs_{run_id}/',
-                         eval_freq=config.n_steps * 2,  # Run it every 2 training iterations
+                         eval_freq=config.training.n_steps * 2,  # Run it every 2 training iterations
                          n_eval_episodes=30,  # Run 30 games
                          deterministic=False, render=False)
         )
 
     print("Training model...")
-    model.learn(total_timesteps=config.step_count,
+    model.learn(total_timesteps=config.training.step_count,
                 callback=callbacks)
-    if not os.path.exists(f'models/rl_model_{run_id}_{config.step_count}_steps.zip'):
-        model.save(path=f'models/rl_model_{run_id}_{config.step_count}_steps.zip')
+    if not os.path.exists(f'models/rl_model_{run_id}_{config.training.step_count}_steps.zip'):
+        model.save(path=f'models/rl_model_{run_id}_{config.training.step_count}_steps.zip')
     print("Done training model.")
 
     # Inference the model
@@ -178,7 +173,7 @@ def train(config: ParamConfigurator):
 
 
 def main():
-    config = ParamConfigurator()
+    config = Hyperparams.load(str(default_config))
     train(config)
 
 

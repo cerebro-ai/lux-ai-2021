@@ -1,9 +1,9 @@
 import unittest
-from src.models.base_nets.InceptionNet import InceptionNet_v1
+from luxai21.models.base_nets.InceptionNet import InceptionNet_v1
 from torchsummary import summary
 
 import sys
-sys.path.append("../../src")
+sys.path.append("..")
 
 
 class MyTestCase(unittest.TestCase):

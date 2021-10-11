@@ -3,21 +3,25 @@ import os
 from setuptools import setup, find_packages
 
 setup(
-    name='luxai2021',
+    name='luxai21',
     version='0.1.0',
-    author='Geoff McDonald',
-    author_email='glmcdona@gmail.com',
+    author='Cerebro AI',
+    author_email='-',
     packages=find_packages(exclude=['tests*']),
     url='http://pypi.python.org/pypi/luxai2021/',
     license='MIT',
     description='Matching python environment code for Lux AI 2021 Kaggle competition and a gym interface for RL models',
     long_description=open('README.md').read(),
     install_requires=[
-        "pytest",
-        "stable_baselines3==1.2.1a2",
+        "gym",
         "numpy",
+        "torch",
+        "torchsummary",
+        "stable_baselines3",
+        "pyyaml",
         "tensorboard",
-        "gym==0.19.0"
+        "pettingzoo"
+        #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
     package_data={'luxai2021': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
     test_suite='nose2.collector.collector',

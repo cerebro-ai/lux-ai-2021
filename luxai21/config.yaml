@@ -8,7 +8,7 @@ training:
   n_steps: 8192
   n_envs: 1  # Number of parallel environments to use in training
 
-models:
+model:
   map_emb_dim: 128
   # TODO insert feature_extractor parameters
   net_arch_shared_layers: [128]
