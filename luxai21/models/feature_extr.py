@@ -43,10 +43,13 @@ class CustomFeatureExtractor(BaseFeaturesExtractor):
 
     @property
     def features_dim(self) -> int:
-        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE  # + ACTION_SIZE @rkstgr schau mal aber ich glaube das muss hier raus
+        # leave out actions_size since it is not passed to the shared layers
+        return self.map_emb_dim + GAME_SIZE + UNIT_SIZE
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         # get the first part which is the map flattened
+        # observation: Tensor: (1, 18469)
+        # features: Tensor: (1, 165) = (1, 128+22+3+12)
 
         map_flattened: th.Tensor = th.narrow(observations, 1, 0, MAP_SIZE)
         game_state = th.narrow(observations, 1, MAP_SIZE, GAME_SIZE)

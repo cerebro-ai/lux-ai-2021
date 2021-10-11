@@ -49,12 +49,16 @@ class CustomMlpExtractor(MlpExtractor):
             device=device
         )
         # net_arch[-1]["pi"][-1] # output dimension of pi network
-        self.linear = nn.Linear(net_arch[-1]["pi"][-1], 9)  # TODO insert actual action_size
+        self.linear = nn.Linear(net_arch[-1]["pi"][-1], ACTION_SIZE)
 
     def forward(self, features: th.Tensor):  # removed -> Tuple[th.Tensor, th.Tensor]:
         """
+        args:
+            features: Tensor: (1, 165)
+
         :return: latent_policy, latent_value of the specified network.
         If all layers are shared, then ``latent_policy == latent_value``
+
         """
 
         action_mask = th.narrow(features, 1, features.shape[1] - ACTION_SIZE, ACTION_SIZE)
@@ -66,11 +70,7 @@ class CustomMlpExtractor(MlpExtractor):
         value = self.value_net(shared_latent)
         action_logits: th.Tensor = self.linear(self.policy_net(shared_latent))
 
-        if ACTION_SIZE == 0:
-            action_mask = torch.ones_like(action_logits, dtype=torch.bool)
-
         # set logits of illegal actions to -inf
-        action_mask = th.narrow(action_mask, 1, 0, action_logits.shape[1])
         masked_action_logits = action_logits.masked_fill(~action_mask.to(th.bool), float("-inf"))
 
         return masked_action_logits, value
