@@ -45,6 +45,9 @@ and start training
 
 ```python
 from luxai21.train import train
+from luxai21.config import Hyperparams
+
+configurator = Hyperparams(config['training'], config['model']).load(config)
 
 train(config)
 ```
