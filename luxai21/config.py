@@ -59,9 +59,3 @@ class Hyperparams:
                     "model": HyperparamsModel(**params["model"])
                 }
                 return Hyperparams(**params)
-
-
-
-if __name__ == '__main__':
-    config = ParamConfigurator()
-    print(config.net_arch_shared_layers)
