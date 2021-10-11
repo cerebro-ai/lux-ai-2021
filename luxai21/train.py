@@ -1,5 +1,6 @@
 import glob
 import os
+import torch as th
 
 from stable_baselines3 import PPO  # pip install stable-baselines3
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback
@@ -173,6 +174,8 @@ def train(config: Hyperparams):
 
 
 def main():
+    device = th.device('cuda' if th.cuda.is_available() else 'cpu')
+    print(device)
     config = Hyperparams.load(str(default_config))
     train(config)
 
