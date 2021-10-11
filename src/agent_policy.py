@@ -338,7 +338,9 @@ def get_action_mask(game, team, city_tile, unit):
         # 4. Check if pillage possible
         # a. Check if unit is worker
         if unit.type == 1:
-            action_mask[8] = 0
+            # b. check if road level larger than 0
+            if game.map.get_cell_by_pos(unit.pos).road > 0:
+                action_mask[8] = 0
 
     if city_tile is not None:
         action_mask[:9] = 0
