@@ -13,8 +13,8 @@ DISABLED = 50
 
 class WandbLogger(Logger):
 
-    def __init__(self, project, config):
-        wandb.init(project=project, config=config)
+    def __init__(self, config, **kwargs):
+        wandb.init(config=config, **kwargs)
 
         self.name_to_value = defaultdict(float)  # values this iteration
         self.name_to_count = defaultdict(int)

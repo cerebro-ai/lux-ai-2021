@@ -63,7 +63,8 @@ def train(config: Hyperparams):
     else:
         env = SubprocVecEnv([make_env(LuxEnvironment(configs=configs,
                                                      learning_agent=AgentPolicy(mode="train"),
-                                                     opponent_agent=opponent), i) for i in range(config.training.n_envs)])
+                                                     opponent_agent=opponent), i) for i in
+                             range(config.training.n_envs)])
 
     run_id = config.training.id
     print("Run id %s" % run_id)
@@ -132,7 +133,8 @@ def train(config: Hyperparams):
         )
 
     # change model logger
-    model.set_logger(WandbLogger(project="luxai21", config=dataclasses.asdict(config)))
+    model.set_logger(
+        WandbLogger(config=dataclasses.asdict(config), **config.wandb))
 
     print("Training model...")
     model.learn(total_timesteps=config.training.step_count,
