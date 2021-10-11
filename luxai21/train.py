@@ -1,3 +1,4 @@
+import dataclasses
 import glob
 import os
 import torch as th
@@ -15,6 +16,7 @@ from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from luxai21.config import Hyperparams, default_config
 
 # https://stable-baselines3.readthedocs.io/en/master/guide/examples.html?highlight=SubprocVecEnv#multiprocessing-unleashing-the-power-of-vectorized-environments
+from luxai21.logger.wandb_logger import WandbLogger
 from luxai21.models.feature_extr import CustomFeatureExtractor
 from luxai21.models.policy import CustomActorCriticPolicy
 
@@ -106,6 +108,7 @@ def train(config: Hyperparams):
 
     callbacks = []
     # Save a checkpoint every 100K steps
+
     callbacks.append(
         CheckpointCallback(save_freq=100000,
                            save_path='./models/',
@@ -127,6 +130,9 @@ def train(config: Hyperparams):
                          n_eval_episodes=30,  # Run 30 games
                          deterministic=False, render=False)
         )
+
+    # change model logger
+    model.set_logger(WandbLogger(project="luxai21", config=dataclasses.asdict(config)))
 
     print("Training model...")
     model.learn(total_timesteps=config.training.step_count,
