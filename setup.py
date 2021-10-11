@@ -8,7 +8,7 @@ setup(
     author='Cerebro AI',
     author_email='-',
     packages=find_packages(exclude=['tests*']),
-    url='http://pypi.python.org/pypi/luxai2021/',
+    url='https://github.com/cerebro-ai/lux-ai-2021/',
     license='MIT',
     description='Matching python environment code for Lux AI 2021 Kaggle competition and a gym interface for RL models',
     long_description=open('README.md').read(),
