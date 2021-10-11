@@ -85,8 +85,9 @@ def train(config: Hyperparams):
             net_arch=[*config.model.net_arch_shared_layers,
                       dict(
                           vf=config.model.net_arch_vf,
-                          pi=config.model.net_arch_pi
-                      )]
+                          pi=config.model.net_arch_pi,
+                          lstm_config=config.model.lstm_config
+                      )],
         )
 
         model = PPO(CustomActorCriticPolicy,
