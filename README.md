@@ -20,10 +20,7 @@ Install the required packages
 Set API Key for Weights & Biases (Metrics logging)
 ```python
 import os
-
 os.environ["WANDB_API_KEY"] = "your api key"
-# optional
-os.environ["WANDB_NOTES"] = "Smaller learning rate, larger batch size"
 
 ```
 
