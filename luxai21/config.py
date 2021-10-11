@@ -28,6 +28,7 @@ class HyperparamsModel:
     net_arch_shared_layers: List[int]
     net_arch_pi: List[int]
     net_arch_vf: List[int]
+    lstm_config: dict
 
 
 @dataclass()

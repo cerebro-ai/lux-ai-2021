@@ -14,3 +14,10 @@ model:
   net_arch_shared_layers: [128]
   net_arch_pi: [64, 32] # policy-function
   net_arch_vf: [128, 64, 32] # value-function
+  lstm_config:
+    # supports all attributes of pytorch LSTM: https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
+    # input_size is implicitly given through the map_emb_dim
+    # batch_first is also always true
+    hidden_size: 128
+    num_layers: 4
+    # dropout: 0.2
