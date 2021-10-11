@@ -31,7 +31,6 @@ class CustomActorCriticPolicy(ActorCriticPolicy):
         )
         # Disable orthogonal initialization
         self.ortho_init = False
-
         # We overwrite the action net of sb3 so that we can use our own action net in models/action_net.py
         # This is a workaround for masked_actions
         self.action_net = nn.Identity()

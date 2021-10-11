@@ -7,10 +7,10 @@ import random
 import numpy as np
 from gym import spaces
 
-from lux_python_env.luxai2021.env.agent import Agent, AgentWithModel
-from lux_python_env.luxai2021.game.actions import *
-from lux_python_env.luxai2021.game.game_constants import GAME_CONSTANTS
-from lux_python_env.luxai2021.game.position import Position
+from luxpythonenv.env.agent import Agent, AgentWithModel
+from luxpythonenv.game.actions import *
+from luxpythonenv.game.game_constants import GAME_CONSTANTS
+from luxpythonenv.game.position import Position
 
 
 # https://codereview.stackexchange.com/questions/28207/finding-the-closest-point-to-a-list-of-points

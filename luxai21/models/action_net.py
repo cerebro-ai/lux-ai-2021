@@ -1,5 +1,7 @@
 # from typing import Tuple
 # from typing import Dict, List, Tuple, Type, Union
+from typing import Dict
+
 import torch
 from stable_baselines3.common.torch_layers import MlpExtractor
 from torch import nn
@@ -49,28 +51,54 @@ class CustomMlpExtractor(MlpExtractor):
             device=device
         )
         # net_arch[-1]["pi"][-1] # output dimension of pi network
-        self.linear = nn.Linear(net_arch[-1]["pi"][-1], 9)  # TODO insert actual action_size
+        self.linear = nn.Linear(net_arch[-1]["pi"][-1], ACTION_SIZE)
+        lstm_config: Dict = net_arch[-1]["lstm_config"] if "lstm_config" in net_arch[-1] else None
+
+        # if lstm_config is given, we overwrite the shared_net with a lstm net
+        if lstm_config is not None:
+            self.use_lstm = True
+            self.hidden = None
+            self.cell = None
+            self.shared_net = nn.LSTM(input_size=feature_dim,
+                                      **lstm_config,
+                                      batch_first=True)
 
     def forward(self, features: th.Tensor):  # removed -> Tuple[th.Tensor, th.Tensor]:
         """
+        args:
+            features: Tensor: (1, 165)
+
         :return: latent_policy, latent_value of the specified network.
         If all layers are shared, then ``latent_policy == latent_value``
+
         """
 
         action_mask = th.narrow(features, 1, features.shape[1] - ACTION_SIZE, ACTION_SIZE)
 
         embedding = th.narrow(features, 1, 0, features.shape[1] - ACTION_SIZE)
 
-        shared_latent = self.shared_net(embedding)
+        if self.use_lstm:
+            embedding_sequence = torch.unsqueeze(embedding, 1)  # expand to BATCHxSEQxLENGTH
+            if self.hidden is None or (embedding_sequence.shape[0] != self.hidden.shape[1]):
+                # no hidden state initialized; first action
+                # or batch size changed, thus hidden layer not incompatible
+                shared_latent_sequence, (hidden, cell) = self.shared_net(embedding_sequence)
+            else:
+                # use available hidden and cell state
+                # if embedding_sequence.shape[0] != self.hidden.shape[1]:
+                #     self.hidden = self.hidden.expand(-1, embedding_sequence.shape[0], -1)
+                #     self.cell = self.cell.expand(-1, embedding_sequence.shape[0], -1)
+                shared_latent_sequence, (hidden, cell) = self.shared_net(embedding_sequence, (self.hidden, self.cell))
+            shared_latent = torch.squeeze(shared_latent_sequence, 1)
+            self.hidden = hidden.detach()
+            self.cell = cell.detach()
+        else:
+            shared_latent = self.shared_net(embedding)
 
         value = self.value_net(shared_latent)
         action_logits: th.Tensor = self.linear(self.policy_net(shared_latent))
 
-        if ACTION_SIZE == 0:
-            action_mask = torch.ones_like(action_logits, dtype=torch.bool)
-
         # set logits of illegal actions to -inf
-        action_mask = th.narrow(action_mask, 1, 0, action_logits.shape[1])
         masked_action_logits = action_logits.masked_fill(~action_mask.to(th.bool), float("-inf"))
 
         return masked_action_logits, value
