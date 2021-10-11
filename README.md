@@ -28,12 +28,12 @@ training:
   learning_rate: 0.002
   gamma: 0.995
   gae_lambda: 0.95
-  batch_size: 256 # testing gradients
+  batch_size: 256
   step_count: 524288
   n_steps: 8192
-  n_envs: 1  # Number of parallel environments to use in training
+  n_envs: 1
 
-models:
+model:
   map_emb_dim: 128
   net_arch_shared_layers: [128]
   net_arch_pi: [64, 32] # policy-function
