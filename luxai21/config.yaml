@@ -1,4 +1,9 @@
 ---
+wandb:
+  entity: cerebro-ai
+  project: luxai21
+  notes: test notes
+
 training:
   learning_rate: 0.001
   gamma: 0.995

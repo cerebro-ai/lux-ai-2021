@@ -35,13 +35,15 @@ class HyperparamsModel:
 class Hyperparams:
     training: HyperparamsTraining
     model: HyperparamsModel
+    wandb: dict
 
     @staticmethod
     def load(source: Union[dict, str]):
         if isinstance(source, dict):
             params = {
                 "training": HyperparamsTraining(**source["training"]),
-                "model": HyperparamsModel(**source["model"])
+                "model": HyperparamsModel(**source["model"]),
+                "wandb": source["wandb"]
             }
             return Hyperparams(**params)
         else:
@@ -50,13 +52,15 @@ class Hyperparams:
                     params = yaml.safe_load(f)
                     params = {
                         "training": HyperparamsTraining(**params["training"]),
-                        "model": HyperparamsModel(**params["model"])
+                        "model": HyperparamsModel(**params["model"]),
+                        "wandb": params["wandb"]
                     }
                     return Hyperparams(**params)
             else:
                 params = yaml.safe_load(source)
                 params = {
                     "training": HyperparamsTraining(**params["training"]),
-                    "model": HyperparamsModel(**params["model"])
+                    "model": HyperparamsModel(**params["model"]),
+                    "wandb": params["wandb"]
                 }
                 return Hyperparams(**params)
