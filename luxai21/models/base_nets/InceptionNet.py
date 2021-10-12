@@ -102,7 +102,6 @@ class InceptionNet_v1(nn.Module):
                                           out_5x5x5=24, out_1x1x1_pool=64)
 
         self.avgpool = nn.AvgPool2d(kernel_size=2, stride=1)
-        self.dropout = nn.Dropout2d(p=0.4)
 
         self.output_size = 2592
 
@@ -118,7 +117,6 @@ class InceptionNet_v1(nn.Module):
         x = self.avgpool(x)
 
         x = x.view(x.size(0), -1)
-        x = self.dropout(x)
 
         return x
 
