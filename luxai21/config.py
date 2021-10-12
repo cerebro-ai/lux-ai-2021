@@ -31,11 +31,19 @@ class HyperparamsModel:
     lstm_config: dict
 
 
+@dataclass
+class HyperparamsReward:
+    units_factor: float
+    citytile_factor: float
+    citytile_end_factor: float
+
+
 @dataclass()
 class Hyperparams:
     training: HyperparamsTraining
     model: HyperparamsModel
     wandb: dict
+    reward: HyperparamsReward
 
     @staticmethod
     def load(source: Union[dict, str]):
@@ -43,7 +51,8 @@ class Hyperparams:
             params = {
                 "training": HyperparamsTraining(**source["training"]),
                 "model": HyperparamsModel(**source["model"]),
-                "wandb": source["wandb"]
+                "wandb": source["wandb"],
+                "reward": HyperparamsReward(**source["reward"])
             }
             return Hyperparams(**params)
         else:
@@ -53,7 +62,8 @@ class Hyperparams:
                     params = {
                         "training": HyperparamsTraining(**params["training"]),
                         "model": HyperparamsModel(**params["model"]),
-                        "wandb": params["wandb"]
+                        "wandb": params["wandb"],
+                        "reward": HyperparamsReward(**params["reward"])
                     }
                     return Hyperparams(**params)
             else:
@@ -61,6 +71,7 @@ class Hyperparams:
                 params = {
                     "training": HyperparamsTraining(**params["training"]),
                     "model": HyperparamsModel(**params["model"]),
-                    "wandb": params["wandb"]
+                    "wandb": params["wandb"],
+                    "reward": HyperparamsReward(**params["reward"])
                 }
                 return Hyperparams(**params)

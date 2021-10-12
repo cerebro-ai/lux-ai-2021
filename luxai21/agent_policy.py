@@ -352,7 +352,7 @@ def get_action_mask(game, team, city_tile, unit):
 # This is the Agent that you need to design for the competition
 ########################################################################################################################
 class AgentPolicy(AgentWithModel):
-    def __init__(self, mode="train", model=None) -> None:
+    def __init__(self, mode="train", model=None, config=None) -> None:
         """
         Arguments:
             mode: "train" or "inference", which controls if this agent is for training or not.
@@ -387,6 +387,8 @@ class AgentPolicy(AgentWithModel):
         self.observation_space = spaces.Box(low=0, high=1, shape=self.observation_shape, dtype=np.float16)
 
         self.object_nodes = {}
+
+        self.config = config
 
     def get_agent_type(self):
         """
@@ -576,11 +578,11 @@ class AgentPolicy(AgentWithModel):
         rewards = {}
 
         # Give a reward for unit creation/death. 0.05 reward per unit.
-        rewards["rew/r_units"] = (unit_count - self.units_last) * 0.05
+        rewards["rew/r_units"] = (unit_count - self.units_last) * self.config.reward.units_factor
         self.units_last = unit_count
 
         # Give a reward for city creation/death. 0.1 reward per city.
-        rewards["rew/r_city_tiles"] = (city_tile_count - self.city_tiles_last) * 0.1
+        rewards["rew/r_city_tiles"] = (city_tile_count - self.city_tiles_last) * self.config.reward.citytile_factor
         self.city_tiles_last = city_tile_count
 
         # Reward collecting fuel
@@ -592,7 +594,7 @@ class AgentPolicy(AgentWithModel):
         rewards["rew/r_city_tiles_end"] = 0
         if is_game_finished:
             self.is_last_turn = True
-            rewards["rew/r_city_tiles_end"] = city_tile_count
+            rewards["rew/r_city_tiles_end"] = city_tile_count * self.config.reward.citytile_end_factor
 
             '''
             # Example of a game win/loss reward instead

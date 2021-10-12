@@ -26,3 +26,8 @@ model:
     hidden_size: 128
     num_layers: 4
     # dropout: 0.2
+
+reward:
+  units_factor: 0.05
+  citytile_factor: 0.1
+  citytile_end_factor: 2
