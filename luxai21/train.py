@@ -52,7 +52,7 @@ def train(config: Hyperparams):
     opponent = Agent()
 
     # Create a RL agent in training mode
-    player = AgentPolicy(mode="train")
+    player = AgentPolicy(mode="train", config=config)
 
     # Train the model
     env_eval = None
@@ -132,9 +132,13 @@ def train(config: Hyperparams):
                          deterministic=False, render=False)
         )
 
-    # change model logger
-    model.set_logger(
-        WandbLogger(config=dataclasses.asdict(config), **config.wandb))
+    # Not the best solution I know xD
+    try:
+        # change model logger
+        model.set_logger(
+            WandbLogger(config=dataclasses.asdict(config), **config.wandb))
+    except:
+        pass
 
     print("Training model...")
     model.learn(total_timesteps=config.training.step_count,
