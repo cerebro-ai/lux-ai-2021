@@ -1,13 +1,49 @@
+"""
+Lux AI env following the DeepMind RL Environment API
+https://github.com/deepmind/dm_env
+
+"""
+import dm_env
 import numpy as np
-from gym.spaces import Discrete
-from pettingzoo import AECEnv
+from gym.spaces import Discrete, Dict, Box
+from dm_env import specs
 from pettingzoo.utils import agent_selector
 
+UNIT_FOV = 3
 
-class LuxMaEnv(AECEnv):
+
+class LuxEnv(dm_env.Environment):
     """
     Lux Multi Agent Environment following the specs of PettingZoo env
     """
+
+    def observation_spec(self):
+        return {
+            'map_obs': specs.Array(shape=(18, 32, 32),
+                                   dtype=np.float32,
+                                   name="map_obs"
+                                   ),
+            'game_stats': specs.Array(shape=(22,),
+                                      dtype=np.float32,
+                                      name="game_stats"
+                                      ),
+            'unit_type': specs.DiscreteArray(3),
+            'unit_obs': specs.Array(shape=(18, 2 * UNIT_FOV + 1, 2 * UNIT_FOV + 1),
+                                    dtype=np.float32,
+                                    name="unit_obs"
+                                    ),
+            'unit_stats': specs.Array(shape=(3,),
+                                      dtype=np.float32,
+                                      name="unit_stats"
+                                      ),
+            'action_mask': specs.Array(shape=(12,),
+                                       dtype=np.int32,
+                                       name="action_mask"
+                                       ),
+        }
+
+    def action_spec(self):
+        pass
 
     def __init__(self):
         """
@@ -24,9 +60,35 @@ class LuxMaEnv(AECEnv):
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
 
         # Gym spaces are defined and documented here: https://gym.openai.com/docs/#spaces
-        # TODO update spaces
-        self.action_spaces = {agent: Discrete(3) for agent in self.possible_agents}
-        self.observation_spaces = {agent: Discrete(4) for agent in self.possible_agents}
+        self.action_spaces = {agent: Discrete(12) for agent in self.possible_agents}
+        self.observation_spaces = {agent: Dict({
+            'map_obs': Box(shape=(18, 32, 32),
+                           dtype=np.float32,
+                           low=-float('inf'),
+                           high=float('inf')
+                           ),
+            'game_stats': Box(shape=(22,),
+                              dtype=np.float32,
+                              low=float('-inf'),
+                              high=float('inf')
+                              ),
+            'unit_type': Discrete(3),
+            'unit_obs': Box(shape=(18, 2 * UNIT_FOV + 1, 2 * UNIT_FOV + 1),
+                            dtype=np.float32,
+                            low=float('-inf'),
+                            high=float('inf')
+                            ),
+            'unit_stats': Box(shape=(3,),
+                              dtype=np.float32,
+                              low=float('-inf'),
+                              high=float('inf')
+                              ),
+            'action_mask': Box(shape=(12,),
+                               dtype=np.int,
+                               low=0,
+                               high=1
+                               ),
+        }) for agent in self.possible_agents}
 
     def step(self, action):
         """
