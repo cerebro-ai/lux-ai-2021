@@ -112,14 +112,8 @@ def train(config: Hyperparams):
     player_replay = AgentPolicy(mode="inference", model=model)
 
     callbacks.append(
-        CheckpointCallback(save_freq=100000,
-                           save_path='./models/',
-                           name_prefix=f'rl_model_{run_id}')
-    )
-
-    callbacks.append(
         SaveReplayAndModelCallback(
-            save_freq=10,
+            save_freq=100000,
             save_path='./models/',
             name_prefix=f'model{run_id}',
             replay_env=LuxEnvironment(
