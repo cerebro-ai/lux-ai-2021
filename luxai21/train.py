@@ -10,7 +10,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from luxai21.agent_policy import AgentPolicy
 from luxpythonenv.env.agent import Agent
-from luxpythonenv.env.lux_env import LuxEnvironment
+from luxpythonenv.env.lux_env import LuxEnvironment, SaveReplayAndModelCallback
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 
 from luxai21.config import Hyperparams, default_config
@@ -109,11 +109,26 @@ def train(config: Hyperparams):
 
     callbacks = []
     # Save a checkpoint every 100K steps
+    player_replay = AgentPolicy(mode="inference", model=model)
 
     callbacks.append(
         CheckpointCallback(save_freq=100000,
                            save_path='./models/',
                            name_prefix=f'rl_model_{run_id}')
+    )
+
+    callbacks.append(
+        SaveReplayAndModelCallback(
+            save_freq=10,
+            save_path='./models/',
+            name_prefix=f'model{run_id}',
+            replay_env=LuxEnvironment(
+                configs=configs,
+                learning_agent=player_replay,
+                opponent_agent=Agent()
+            ),
+            replay_num_episodes=5
+        )
     )
 
     # Since reward metrics don't work for multi-environment setups, we add an evaluation logger
