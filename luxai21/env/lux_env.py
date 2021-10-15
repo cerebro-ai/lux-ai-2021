@@ -61,7 +61,10 @@ class LuxEnv(ParallelEnv):
     def render(self, mode='human'):
         raise NotImplementedError()
 
-    def reset(self) -> dm_env.TimeStep[float, float, dict]:
+    def reset(self):
+        """
+        TODO check return type
+        """
         self.game.reset()
         self.steps = 0
         self.agents = self.possible_agents[:]
@@ -74,9 +77,9 @@ class LuxEnv(ParallelEnv):
 
         self.game_previous_turn = copy.deepcopy(self.game)
 
-        # obs = self.get_observations(self.game)
+        obs = self.generate_obs()
 
-        return None
+        return obs
 
     def step(self, actions):
         """
