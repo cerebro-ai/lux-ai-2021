@@ -4,6 +4,7 @@ https://github.com/deepmind/dm_env
 
 """
 import copy
+from typing import List
 
 import dm_env
 import numpy as np
@@ -33,7 +34,7 @@ class LuxEnv(ParallelEnv):
         super().__init__()  # does nothing
 
         self.game = Game(LuxMatchConfigs_Default.update(game_config))
-        self.previous_turn_game = None  # to derive rewards per turn
+        self.game_previous_turn: Game = None  # to derive rewards per turn
 
         self.agents = ["player_0", "player_1"]
         self.possible_agents = self.agents[:]
@@ -57,6 +58,9 @@ class LuxEnv(ParallelEnv):
     def state(self):
         pass
 
+    def render(self, mode='human'):
+        raise NotImplementedError()
+
     def reset(self) -> dm_env.TimeStep[float, float, dict]:
         self.game.reset()
         self.steps = 0
@@ -68,7 +72,7 @@ class LuxEnv(ParallelEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.previous_turn_game = copy.deepcopy(self.game)
+        self.game_previous_turn = copy.deepcopy(self.game)
 
         # obs = self.get_observations(self.game)
 
@@ -89,16 +93,17 @@ class LuxEnv(ParallelEnv):
                     }
                 }
 
-        TODO implement translate_actions
-        TODO implement compute_rewards
         """
         if not actions:
             self.agents = []
             return {}, {}, {}, {}
 
-        game_actions = translate_actions(actions)
+        game_actions = self.translate_actions(actions)
         is_game_done = self.game.run_turn_with_actions(actions=game_actions)
-        rewards = compute_rewards(self.previous_turn_game, self.game)
+        rewards = self.compute_rewards()
+
+        self.game_previous_turn = copy.deepcopy(self.game)
+
         observations = self.generate_obs()
 
         infos = {agent: {} for agent in self.agents}
@@ -107,6 +112,27 @@ class LuxEnv(ParallelEnv):
         self.steps += 1
 
         return observations, rewards, dones, infos
+
+    def translate_actions(self, actions) -> List:
+        """
+        TODO implement translate_actions
+        """
+        raise NotImplementedError
+
+    def compute_rewards(self) -> dict:
+        """
+        TODO implement compute rewards
+        """
+
+        # check if game over
+        if self.game.match_over():
+            pass
+
+        # return {
+        #     agent: 0 for agent in self.agents
+        # }
+
+        raise NotImplementedError
 
     def generate_obs(self):
         """
@@ -137,9 +163,6 @@ class LuxEnv(ParallelEnv):
                 **unit_states_player1
             }
         }
-
-    def render(self, mode='human'):
-        raise NotImplementedError()
 
     @property
     def observation_spaces(self):
