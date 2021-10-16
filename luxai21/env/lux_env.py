@@ -4,18 +4,21 @@ https://github.com/deepmind/dm_env
 
 """
 import copy
-from typing import List, Optional
+from functools import partial
+from typing import List, Optional, Mapping
 
 import numpy as np
 from gym.spaces import Discrete, Dict, Box
+from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction, SpawnWorkerAction, SpawnCartAction, \
+    ResearchAction
 
-from luxpythonenv.game.constants import LuxMatchConfigs_Default
+from luxpythonenv.game.constants import LuxMatchConfigs_Default, Constants
 from luxpythonenv.game.game import Game
 from pettingzoo import ParallelEnv
 from pettingzoo.utils import agent_selector
 
 from luxai21.env.utils import generate_map_state_matrix, switch_map_matrix_player_view, generate_game_state_matrix, \
-    generate_unit_states
+    generate_unit_states, smart_transfer_to_nearby
 
 UNIT_FOV = 3
 
@@ -150,11 +153,64 @@ class LuxEnv(ParallelEnv):
 
         return observations, rewards, dones, infos
 
-    def translate_actions(self, actions) -> List:
+    def translate_actions(self, actions: Mapping[str, Mapping[str, int]]) -> List:
         """
-        TODO implement translate_actions
+        Args:
+            actions: Dict with the actions of both agents/players for each of their units/city_tiles
+                e.g. {
+                'player_0': {
+                    'u1': 1,
+                    ...
+                },
+                'player_1': {
+                    'c2': 3,
+                    ...
+                }
+
+        Returns:
+            A list with all of the actions from both players
         """
-        raise NotImplementedError
+        translated_actions = []
+
+        for agent, pieces in actions.items():
+            team = self.agent_name_mapping[agent]
+            for piece_id, action_id in pieces.items():
+                # city_tiles have no id, thus we find them by position
+                if piece_id.startswith("ct"):
+                    ident, x_str, y_str = piece_id.split("_")
+                    cell = self.game.map.get_cell(int(x_str), int(y_str))
+                    city_tile = cell.city_tile
+                    if city_tile is None:
+                        raise Exception(f"city_tile could not be found for {piece_id}")
+
+                    action = self.action_map[action_id](
+                        game=self.game,
+                        unit_id=None,
+                        unit=None,
+                        city_id=city_tile.city_id,
+                        city_tile=city_tile,
+                        team=team,
+                        x=int(x_str),
+                        y=int(y_str)
+                    )
+                    if action is not None:
+                        translated_actions.append(action)
+
+                else:
+                    unit = self.game.get_unit(team=team, unit_id=piece_id)
+                    action = self.action_map[action_id](
+                        game=self.game,
+                        unit_id=unit.id,
+                        unit=unit,
+                        city_id=None,
+                        citytile=None,
+                        team=team,
+                        x=unit.pos.x,
+                        y=unit.pos.y
+                    )
+                    translated_actions.append(action)
+
+        return translated_actions
 
     def compute_rewards(self) -> dict:
         """
