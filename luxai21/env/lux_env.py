@@ -63,6 +63,22 @@ class LuxEnv(ParallelEnv):
 
         self.steps = 0  # this is equivalent to turns in the game
 
+        self.action_map = [
+            partial(MoveAction, direction=Constants.DIRECTIONS.CENTER),  # This is the do-nothing action
+            partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),
+            partial(MoveAction, direction=Constants.DIRECTIONS.WEST),
+            partial(MoveAction, direction=Constants.DIRECTIONS.SOUTH),
+            partial(MoveAction, direction=Constants.DIRECTIONS.EAST),
+            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER),
+            partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.CART),
+            SpawnCityAction,
+            PillageAction,
+            None,  # City do nothing
+            SpawnWorkerAction,
+            SpawnCartAction,
+            ResearchAction
+        ]
+
         self._cumulative_rewards = dict()
         self.rewards = None
         self.dones = None
