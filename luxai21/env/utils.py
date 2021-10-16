@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from luxpythonenv.game.cell import Cell
 from luxpythonenv.game.city import City, CityTile
@@ -5,6 +7,7 @@ from luxpythonenv.game.constants import Constants
 from luxpythonenv.game.game import Game
 from luxpythonenv.game.game_constants import GAME_CONSTANTS
 from luxpythonenv.game.position import Position
+from luxpythonenv.game.unit import Unit
 
 
 def find_all_resources(game_state):
@@ -219,7 +222,7 @@ def generate_game_state_matrix(game_state: Game, team: int):
          enemy_uranium])
 
 
-def generate_unit_states(game_state: Game, team: int):
+def generate_unit_states(game_state: Game, team: int, config):
     """
     Return a dictionary where the keys are the unit_id or citytile_id and the value the unit
     {
@@ -230,5 +233,122 @@ def generate_unit_states(game_state: Game, team: int):
             action_mask: Discrete(12)
 
     }
-
     """
+    states = {}
+    for _, city in game_state.cities.items():
+        if city.team == team:
+            for cell in city.city_cells:
+                city_tile = cell.city_tile
+                states[f"ct_{cell.pos.x}_{cell.pos.y}"] = {
+                    "type": 2,
+                    "pos": np.array([cell.pos.x, cell.pos.y]),
+                    "action_mask": get_action_mask(game_state, team, None, city_tile, config)
+                }
+
+    for unit in game_state.state["teamStates"][team]["units"].values():
+        states[unit.id] = {
+            "type": 0 if unit.is_worker() else 1,
+            "pos": np.array([unit.pos.x, unit.pos.y]),
+            "action_mask": get_action_mask(game_state, team, unit, None, config)
+        }
+
+
+def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile: Optional[CityTile], config):
+    """
+    actions:
+    --- unit
+    0. do nothing
+    1. move north
+    2. move west
+    3. move south
+    4. move east
+    5. transfer to worker (smart transfer)
+    6. transfer to cart (smart transfer)
+    7. spawn city
+    8. pillage
+    --- city
+    9.  do nothing
+    10. spawn worker
+    11. spawn cart
+    12. research
+    """
+    action_mask = np.zeros(12)
+
+    if unit is not None:
+        action_mask[0] = 1  # always allow to do nothing
+
+        # check if can act
+        if not unit.can_act():
+            return action_mask
+
+        def is_enemy_city(x, y):
+            cell = game_state.map.get_cell(x, y)
+            if cell.is_city_tile():
+                if cell.city_tile.team != team:
+                    return True
+            return False
+
+        # MOVEMENT
+        # Check boarder & enemy city_tile
+        # NORTH
+        if unit.pos.y != 0:
+            if not is_enemy_city(unit.pos.x, unit.pos.y - 1):
+                action_mask[1] = 1
+        # WEST
+        if unit.pos.x != 0:
+            if not is_enemy_city(unit.pos.x - 1, unit.pos.y):
+                action_mask[2] = 1
+        # SOUTH
+        if unit.pos.y != (game_state.map.height - 1):
+            if not is_enemy_city(unit.pos.x, unit.pos.y + 1):
+                action_mask[3] = 1
+        # EAST
+        if unit.pos.x != (game_state.map.width - 1):
+            if not is_enemy_city(unit.pos.x + 1, unit.pos.y):
+                action_mask[4] = 1
+
+        # TRANSFER
+        cell = game_state.map.get_cell_by_pos(unit.pos)
+        adj_cells = game_state.map.get_adjacent_cells(cell)
+        for cell in adj_cells:
+            if cell.has_units():
+                units = cell.units
+                for _, unit in units.items():
+                    # Check if unit in team
+                    if unit.team == team:
+                        # a. Check if worker nearby
+                        if unit.type == 0:
+                            action_mask[5] = 1
+                            break
+                        # b. Check if cart nearby
+                        else:
+                            if config["allow_carts"]:
+                                action_mask[6] = 1
+                            break
+
+        # BUILD CITY & PILLAGE
+        if unit.is_worker():
+            if unit.can_build(game_state.map):
+                action_mask[7] = 1
+
+            if game_state.map.get_cell_by_pos(unit.pos).road > 0:
+                action_mask[8] = 1
+
+    elif city_tile is not None:
+        # do nothing
+        action_mask[9] = 1
+
+        if not city_tile.can_act():
+            return action_mask
+
+        if city_tile.can_build_unit():
+            action_mask[10] = 1
+            if config["allow_carts"]:
+                action_mask[11] = 1
+
+        if city_tile.can_research():
+            action_mask[12] = 1
+    else:
+        raise Exception("unit and city_tile both None")
+
+    return action_mask
