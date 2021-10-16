@@ -106,12 +106,14 @@ class LuxEnv(ParallelEnv):
 
     def reset(self):
         """
-        TODO check return type
+        Returns:
+            Observation of the first state
         """
         self.game_state.reset()
         self.steps = 0
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next()
+
         self._cumulative_rewards = dict(zip(self.agents, [(0) for _ in self.agents]))
         self.rewards = dict(zip(self.agents, [(0) for _ in self.agents]))
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
@@ -224,7 +226,7 @@ class LuxEnv(ParallelEnv):
         Returns:
             A dict with the respective rewards of every agent/player for the current game_state in comparison to
             the last_game_state
-        """
+
         reward_config = {
 
             "BUILD_CITY_TILE": 0.01,  # reward for every new build city, will be negative if a city_tile vanishes
@@ -245,6 +247,7 @@ class LuxEnv(ParallelEnv):
             "ZERO_SUM": True
             # if true it will center the agent rewards around zero, and one agent will get a negative reward
         }
+        """
 
         rewards = np.zeros(2)
 
