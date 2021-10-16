@@ -8,6 +8,7 @@ from functools import partial
 from pathlib import Path
 from typing import List, Mapping, Tuple
 
+import wandb
 from gym.spaces import Discrete, Dict, Box
 from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction, SpawnWorkerAction, SpawnCartAction, \
     ResearchAction
@@ -104,15 +105,7 @@ class LuxEnv(ParallelEnv):
     def state(self):
         pass
 
-    def get_replay_steps(self):
-        """
-        steps: [
-            [
-             {action: [] , observation: } -> command: action, agentID: player
-
-            ]
-        ]
-        """
+    def _get_replay_steps(self):
         steps = []
         commands = self.game_state.replay_data["allCommands"]
         for turn in commands:
@@ -129,10 +122,10 @@ class LuxEnv(ParallelEnv):
             steps.append(turn_steps)
         return steps
 
-    def render_env(self):
+    def _render_env(self):
         # spec = json.load(Path(__file__).parent.joinpath("specification.json").open())
         result = {
-            "steps": self.get_replay_steps(),
+            "steps": self._get_replay_steps(),
             # "allCommands": self.game_state.replay_data["allCommands"],
             "mapType": self.game_state.replay_data["mapType"],
             "configuration": self.game_config,
@@ -159,7 +152,7 @@ class LuxEnv(ParallelEnv):
             key = "/*window.kaggle*/"
             value = f"""window.kaggle = {json.dumps(input_html, indent=2)};\n\n"""
 
-            with Path(__file__).parent.joinpath("render.html").open("r", encoding="utf-8") as f:
+            with Path(__file__).parent.joinpath("light_render.html").open("r", encoding="utf-8") as f:
                 result = f.read()
                 result = result.replace(key, value)
             return result
@@ -171,7 +164,7 @@ class LuxEnv(ParallelEnv):
                 "playing": True,
                 "step": 0,
                 "controls": True,
-                "environment": self.render_env(),
+                "environment": self._render_env(),
                 "logs": "",
                 **kwargs,
             }
@@ -180,14 +173,13 @@ class LuxEnv(ParallelEnv):
 
             if mode == "html":
                 return player_html
-            else:
-                raise NotImplementedError
-                # from IPython.display import display, HTML
-                # player_html = player_html.replace('"', '&quot;')
-                # width = get(kwargs, int, 300, path=["width"])
-                # height = get(kwargs, int, 300, path=["height"])
-                # html = f'<iframe srcdoc="{player_html}" width="{width}" height="{height}" frameborder="0"></iframe> '
-                # display(HTML(html))
+            elif mode == "ipython":
+                #from IPython.display import display, HTML
+                player_html = player_html.replace('"', '&quot;')
+                width = 300
+                height = 300
+                html = f'<iframe srcdoc="{player_html}" width="{width}" height="{height}" frameborder="0"></iframe> '
+                return html
 
     def reset(self):
         """
@@ -447,6 +439,11 @@ if __name__ == '__main__':
 
     env = LuxEnv(config=example_config.config)
 
+    use_wandb = True
+
+    if use_wandb:
+        wandb.init(project="luxai21", entity="cerebro-ai")
+
     obs = env.reset()
 
     while not env.game_state.match_over():
@@ -460,7 +457,9 @@ if __name__ == '__main__':
         }
         obs, rewards, dones, infos = env.step(actions)
 
-    with open("test.html", "w") as f:
-        f.write(env.render("html"))
-
+    #with open("test.html", "w") as f:
+        #html = env.render("html")
+        #f.write(html)
+    if use_wandb:
+        wandb.log({"LuxEnv": wandb.Html(env.render("html"), inject=False)})
     print(env.turn)
