@@ -16,6 +16,8 @@ from luxpythonenv.game.game import Game
 from pettingzoo import AECEnv, ParallelEnv
 from pettingzoo.utils import agent_selector
 
+from luxai21.env.utils import generate_map_state_matrix, switch_map_matrix_player_view, generate_game_state_matrix, generate_unit_states
+
 UNIT_FOV = 3
 
 
@@ -24,17 +26,24 @@ class LuxEnv(ParallelEnv):
     Lux Multi Agent Environment following PettingZoo
     """
 
-    def __init__(self, game_config: dict = None):
+    def __init__(self, game_config: dict = None, obs_config: dict = None):
         """
         Args:
-            unit_fov: Field of View, how far can a unit (worker, cart) see in each direction
             game_config: Config that gets passed to the game. Possible keys:
                 width, height, seed
+
+            obs_config: Config for the observation & action_mask
+                e.g if agents should be able to build carts
         """
         super().__init__()  # does nothing
 
         self.game = Game(LuxMatchConfigs_Default.update(game_config))
         self.game_previous_turn: Game = None  # to derive rewards per turn
+
+        self.obs_config = {
+            "allow_carts": False
+        }
+        self.obs_config.update(obs_config)
 
         self.agents = ["player_0", "player_1"]
         self.possible_agents = self.agents[:]
@@ -139,20 +148,18 @@ class LuxEnv(ParallelEnv):
 
     def generate_obs(self):
         """
-        TODO generate_map_state_matrix
-        TODO switch_player_view
         TODO generate_game_state_matrix
         TODO generate_unit_states
         """
 
         _map_player0 = generate_map_state_matrix(self.game)
-        _map_player1 = switch_player_view(_map_player0)
+        _map_player1 = switch_map_matrix_player_view(_map_player0)
 
-        game_state_player0 = generate_game_state_matrix(self.game, 0)
-        game_state_player1 = generate_game_state_matrix(self.game, 1)
+        game_state_player0 = generate_game_state_matrix(self.game, team=0)
+        game_state_player1 = generate_game_state_matrix(self.game, team=1)
 
-        unit_states_player0 = generate_unit_states(game=self.game, team=0)
-        unit_states_player1 = generate_unit_states(game=self.game, team=1)
+        unit_states_player0 = generate_unit_states(self.game, team=0, config=self.obs_config)
+        unit_states_player1 = generate_unit_states(self.game, team=1, config=self.obs_config)
 
         return {
             self.agents[0]: {
@@ -175,7 +182,7 @@ class LuxEnv(ParallelEnv):
                         low=-float('inf'),
                         high=float('inf')
                         ),
-            '_game_state': Box(shape=(22,),
+            '_game_state': Box(shape=(24,),
                                dtype=np.float32,
                                low=float('-inf'),
                                high=float('inf')
@@ -201,3 +208,5 @@ class LuxEnv(ParallelEnv):
     @property
     def action_spaces(self):
         return {agent: Discrete(12) for agent in self.possible_agents}
+
+
