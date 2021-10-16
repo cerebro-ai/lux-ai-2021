@@ -462,7 +462,7 @@ def get_unit_count(game_state: Game, team: int):
 
 def get_worker_count(game_state: Game, team: int):
     count = 0
-    for unit in game_state.get_teams_units(team):
+    for unit in game_state.get_teams_units(team).values():
         if unit.is_worker():
             count += 1
     return count
@@ -470,7 +470,7 @@ def get_worker_count(game_state: Game, team: int):
 
 def get_cart_count(game_state: Game, team: int):
     count = 0
-    for unit in game_state.get_teams_units(team):
+    for unit in game_state.get_teams_units(team).values():
         if unit.is_cart():
             count += 1
     return count
