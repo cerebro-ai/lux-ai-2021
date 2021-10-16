@@ -5,7 +5,7 @@ https://github.com/deepmind/dm_env
 """
 import copy
 from functools import partial
-from typing import List, Optional, Mapping
+from typing import List, Optional, Mapping, Tuple
 
 import numpy as np
 from gym.spaces import Discrete, Dict, Box
@@ -128,7 +128,7 @@ class LuxEnv(ParallelEnv):
 
         return obs
 
-    def step(self, actions):
+    def step(self, actions) -> Tuple[dict, dict, dict, dict]:
         """
         Args:
             actions: Dict
@@ -142,7 +142,8 @@ class LuxEnv(ParallelEnv):
                     'c2': 1,
                     }
                 }
-
+        Returns:
+            observations, rewards, dones, infos
         """
         if not actions:
             self.agents = []
@@ -254,7 +255,7 @@ class LuxEnv(ParallelEnv):
 
         rewards = np.zeros(2)
 
-        for i, agent in self.agents:
+        for i, agent in enumerate(self.agents):
 
             # reward new cities
             delta_city_tiles = get_city_tile_count(self.game_state, i) - get_city_tile_count(self.last_game_state, i)
@@ -366,7 +367,10 @@ if __name__ == '__main__':
 
     obs = env.reset()
 
-    while True:
-        actions = {}
-        pass
-        env.step(actions)
+    while not env.game_state.match_over():
+        actions = {"player_0": {
+            "u_1": 1
+        }}
+        obs, rewards, dones, infos = env.step(actions)
+
+    print(env.steps)
