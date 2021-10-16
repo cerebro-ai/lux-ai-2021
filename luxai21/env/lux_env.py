@@ -1,19 +1,15 @@
 """
-Lux AI env following the DeepMind RL Environment API
-https://github.com/deepmind/dm_env
-
+Lux AI env following the PettingZoo ParallelEnv
 """
+
 import copy
 from functools import partial
-from typing import List, Optional, Mapping, Tuple
+from typing import List, Mapping, Tuple
 
-import numpy as np
 from gym.spaces import Discrete, Dict, Box
 from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction, SpawnWorkerAction, SpawnCartAction, \
     ResearchAction
-
-from luxpythonenv.game.constants import LuxMatchConfigs_Default, Constants
-from luxpythonenv.game.game import Game
+from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from pettingzoo import ParallelEnv
 from pettingzoo.utils import agent_selector
 
@@ -72,7 +68,7 @@ class LuxEnv(ParallelEnv):
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = None
 
-        self.steps = 0  # this is equivalent to turns in the game
+        self.turn = 0
 
         self.action_map = [
             partial(MoveAction, direction=Constants.DIRECTIONS.CENTER),  # This is the do-nothing action
@@ -113,7 +109,7 @@ class LuxEnv(ParallelEnv):
             Observation of the first state
         """
         self.game_state.reset()
-        self.steps = 0
+        self.turn = 0
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next()
 
@@ -160,7 +156,7 @@ class LuxEnv(ParallelEnv):
         infos = {agent: {} for agent in self.agents}
         dones = {agent: is_game_done for agent in self.agents}
 
-        self.steps += 1
+        self.turn += 1
 
         return observations, rewards, dones, infos
 
@@ -373,4 +369,4 @@ if __name__ == '__main__':
         }}
         obs, rewards, dones, infos = env.step(actions)
 
-    print(env.steps)
+    print(env.turn)
