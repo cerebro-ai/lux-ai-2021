@@ -4,19 +4,18 @@ https://github.com/deepmind/dm_env
 
 """
 import copy
-from typing import List
+from typing import List, Optional
 
-import dm_env
 import numpy as np
 from gym.spaces import Discrete, Dict, Box
-from kaggle_environments import make
 
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from luxpythonenv.game.game import Game
-from pettingzoo import AECEnv, ParallelEnv
+from pettingzoo import ParallelEnv
 from pettingzoo.utils import agent_selector
 
-from luxai21.env.utils import generate_map_state_matrix, switch_map_matrix_player_view, generate_game_state_matrix, generate_unit_states
+from luxai21.env.utils import generate_map_state_matrix, switch_map_matrix_player_view, generate_game_state_matrix, \
+    generate_unit_states
 
 UNIT_FOV = 3
 
@@ -38,7 +37,7 @@ class LuxEnv(ParallelEnv):
         super().__init__()  # does nothing
 
         self.game = Game(LuxMatchConfigs_Default.update(game_config))
-        self.game_previous_turn: Game = None  # to derive rewards per turn
+        self.game_previous_turn: Optional[Game] = None  # to derive rewards per turn
 
         self.obs_config = {
             "allow_carts": False
@@ -46,7 +45,6 @@ class LuxEnv(ParallelEnv):
         self.obs_config.update(obs_config)
 
         self.agents = ["player_0", "player_1"]
-        self.possible_agents = self.agents[:]
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = None
@@ -76,7 +74,6 @@ class LuxEnv(ParallelEnv):
         """
         self.game.reset()
         self.steps = 0
-        self.agents = self.possible_agents[:]
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next()
         self._cumulative_rewards = dict(zip(self.agents, [(0) for _ in self.agents]))
@@ -147,11 +144,6 @@ class LuxEnv(ParallelEnv):
         raise NotImplementedError
 
     def generate_obs(self):
-        """
-        TODO generate_game_state_matrix
-        TODO generate_unit_states
-        """
-
         _map_player0 = generate_map_state_matrix(self.game)
         _map_player1 = switch_map_matrix_player_view(_map_player0)
 
@@ -207,6 +199,4 @@ class LuxEnv(ParallelEnv):
 
     @property
     def action_spaces(self):
-        return {agent: Discrete(12) for agent in self.possible_agents}
-
-
+        return {agent: Discrete(12) for agent in self.agents}
