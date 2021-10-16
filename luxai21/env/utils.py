@@ -110,7 +110,7 @@ def generate_map_state_matrix(game_state: Game):
         :param game_state: current lux.game.Game object
         :return: np.ndarray containing the encoded map state
         """
-    map_state = np.zeros((game_state.map.height, game_state.map.width, 17))
+    map_state = np.zeros((game_state.map.height, game_state.map.width, 19))
     fuel_normalizer = 1000
 
     resource_tiles = find_all_resources(game_state)
@@ -212,7 +212,7 @@ def generate_map_state_matrix(game_state: Game):
             map_state[cell.pos.x][cell.pos.y][17] = cell.road / GAME_CONSTANTS["PARAMETERS"]["MAX_ROAD"]
             map_state[cell.pos.x][cell.pos.y][18] = 1  # is map cell
 
-    return map
+    return map_state
 
 
 def switch_map_matrix_player_view(map_matrix: np.ndarray):
@@ -332,6 +332,7 @@ def generate_unit_states(game_state: Game, team: int, config):
             "pos": np.array([unit.pos.x, unit.pos.y]),
             "action_mask": get_action_mask(game_state, team, unit, None, config)
         }
+    return states
 
 
 def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile: Optional[CityTile], config):
@@ -353,7 +354,7 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
     11. spawn cart
     12. research
     """
-    action_mask = np.zeros(12)
+    action_mask = np.zeros(13)
 
     if unit is not None:
         action_mask[0] = 1  # always allow to do nothing
@@ -423,9 +424,10 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
             return action_mask
 
         if city_tile.can_build_unit():
-            action_mask[10] = 1
-            if config["allow_carts"]:
-                action_mask[11] = 1
+            if get_unit_count(game_state, team) < get_city_tile_count(game_state, team):
+                action_mask[10] = 1
+                if config["allow_carts"]:
+                    action_mask[11] = 1
 
         if city_tile.can_research():
             action_mask[12] = 1
@@ -452,6 +454,10 @@ def get_city_tile_count(game_state: Game, team: int):
                 if city_tile is not None:
                     count += 1
     return count
+
+
+def get_unit_count(game_state: Game, team: int):
+    return len(game_state.get_teams_units(team))
 
 
 def get_worker_count(game_state: Game, team: int):

@@ -57,12 +57,15 @@ class LuxEnv(ParallelEnv):
         self.agent_config = config["agent"]
         self.reward_config = config["reward"]
 
-        self.game_state = Game(LuxMatchConfigs_Default.update(self.game_config))
+        lux_game_config = LuxMatchConfigs_Default.copy()
+        lux_game_config.update(self.game_config)
+        self.game_state = Game(lux_game_config)
         self.last_game_state: Optional[Game] = None  # to derive rewards per turn
 
         self.agent_config = {
             "allow_carts": False
-        }.update(self.agent_config)
+        }
+        self.agent_config.update(self.agent_config)
 
         self.agents = ["player_0", "player_1"]
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
@@ -285,7 +288,7 @@ class LuxEnv(ParallelEnv):
             # check if game over
             if self.game_state.match_over():
                 rewards[i] += get_city_tile_count(self.game_state, i) * reward_config["CITY_AT_END"]
-                rewards[i] += self.game_state.get_teams_units(i) * reward_config["UNIT_AT_END"]
+                rewards[i] += len(self.game_state.get_teams_units(i)) * reward_config["UNIT_AT_END"]
 
                 if i == self.game_state.get_winning_team():
                     rewards[i] += reward_config["WIN"]
@@ -354,3 +357,16 @@ class LuxEnv(ParallelEnv):
     @property
     def action_spaces(self):
         return {agent: Discrete(12) for agent in self.agents}
+
+
+if __name__ == '__main__':
+    import example_config
+
+    env = LuxEnv(config=example_config.config)
+
+    obs = env.reset()
+
+    while True:
+        actions = {}
+        pass
+        env.step(actions)
