@@ -1,6 +1,7 @@
 from typing import Optional
 
 import numpy as np
+from luxpythonenv.game.actions import TransferAction
 from luxpythonenv.game.cell import Cell
 from luxpythonenv.game.city import City, CityTile
 from luxpythonenv.game.constants import Constants
@@ -21,6 +22,86 @@ def find_all_resources(game_state):
                 resource_tiles.append(cell)
 
     return resource_tiles
+
+
+def smart_transfer_to_nearby(game, team, unit_id, unit, target_type_restriction=None, **kwarg):
+    """
+    Smart-transfers from the specified unit to a nearby neighbor. Prioritizes any
+    nearby carts first, then any worker. Transfers the resource type which the unit
+    has most of. Picks which cart/worker based on choosing a target that is most-full
+    but able to take the most amount of resources.
+    Args:
+        game
+        team ([type]): [description]
+        unit_id ([type]): [description]
+        unit
+        target_type_restriction
+        **kwarg
+    Returns:
+        Action: Returns a TransferAction object, even if the request is an invalid
+                transfer. Use TransferAction.is_valid() to check validity.
+    """
+
+    # Calculate how much resources could at-most be transferred
+    resource_type = None
+    resource_amount = 0
+    target_unit = None
+
+    if unit != None:
+        for type, amount in unit.cargo.items():
+            if amount > resource_amount:
+                resource_type = type
+                resource_amount = amount
+
+        # Find the best nearby unit to transfer to
+        unit_cell = game.map.get_cell_by_pos(unit.pos)
+        adjacent_cells = game.map.get_adjacent_cells(unit_cell)
+
+        for c in adjacent_cells:
+            for id, u in c.units.items():
+                # Apply the unit type target restriction
+                if target_type_restriction == None or u.type == target_type_restriction:
+                    if u.team == team:
+                        # This unit belongs to our team, set it as the winning transfer target
+                        # if it's the best match.
+                        if target_unit is None:
+                            target_unit = u
+                        else:
+                            # Compare this unit to the existing target
+                            if target_unit.type == u.type:
+                                # Transfer to the target with the least capacity, but can accept
+                                # all of our resources
+                                if (u.get_cargo_space_left() >= resource_amount and
+                                        target_unit.get_cargo_space_left() >= resource_amount):
+                                    # Both units can accept all our resources. Prioritize one that is most-full.
+                                    if u.get_cargo_space_left() < target_unit.get_cargo_space_left():
+                                        # This new target it better, it has less space left and can take all our
+                                        # resources
+                                        target_unit = u
+
+                                elif (target_unit.get_cargo_space_left() >= resource_amount):
+                                    # Don't change targets. Current one is best since it can take all
+                                    # the resources, but new target can't.
+                                    pass
+
+                                elif (u.get_cargo_space_left() > target_unit.get_cargo_space_left()):
+                                    # Change targets, because neither target can accept all our resources and
+                                    # this target can take more resources.
+                                    target_unit = u
+                            elif u.type == Constants.UNIT_TYPES.CART:
+                                # Transfer to this cart instead of the current worker target
+                                target_unit = u
+
+    # Build the transfer action request
+    target_unit_id = None
+    if target_unit is not None:
+        target_unit_id = target_unit.id
+
+        # Update the transfer amount based on the room of the target
+        if target_unit.get_cargo_space_left() < resource_amount:
+            resource_amount = target_unit.get_cargo_space_left()
+
+    return TransferAction(team, unit_id, target_unit_id, resource_type, resource_amount)
 
 
 def generate_map_state_matrix(game_state: Game):
