@@ -3,7 +3,9 @@ Lux AI env following the PettingZoo ParallelEnv
 """
 
 import copy
+import json
 from functools import partial
+from pathlib import Path
 from typing import List, Mapping, Tuple
 
 from gym.spaces import Discrete, Dict, Box
@@ -56,6 +58,8 @@ class LuxEnv(ParallelEnv):
         lux_game_config = LuxMatchConfigs_Default.copy()
         lux_game_config.update(self.game_config)
         self.game_state = Game(lux_game_config)
+        # rendering
+        self.game_state.start_replay_logging(stateful=True)
         self.last_game_state: Optional[Game] = None  # to derive rewards per turn
 
         self.agent_config = {
@@ -100,8 +104,90 @@ class LuxEnv(ParallelEnv):
     def state(self):
         pass
 
-    def render(self, mode='human'):
-        raise NotImplementedError()
+    def get_replay_steps(self):
+        """
+        steps: [
+            [
+             {action: [] , observation: } -> command: action, agentID: player
+
+            ]
+        ]
+        """
+        steps = []
+        commands = self.game_state.replay_data["allCommands"]
+        for turn in commands:
+            turn_steps = []
+            for cmd in turn:
+                step = {
+                    "action": [cmd["command"]],
+                    "observation": {
+                        "player": cmd["agentID"]
+                    }
+                }
+                turn_steps.append(step)
+
+            steps.append(turn_steps)
+        return steps
+
+    def render_env(self):
+        # spec = json.load(Path(__file__).parent.joinpath("specification.json").open())
+        result = {
+            "steps": self.get_replay_steps(),
+            # "allCommands": self.game_state.replay_data["allCommands"],
+            "mapType": self.game_state.replay_data["mapType"],
+            "configuration": self.game_config,
+            "seed": self.game_state.replay_data["seed"],
+            "info": {
+                "TeamNames": self.agents
+            },
+            "teamDetails": [
+                {
+                    "name": "Agent0",
+                    "tournamentID": '',
+                },
+                {
+                    "name": "Agent1",
+                    "tournamentID": '',
+                },
+            ],
+            "version": "3.1.0"
+        }
+        return result
+
+    def render(self, mode='html', **kwargs):
+        def get_html(input_html):
+            key = "/*window.kaggle*/"
+            value = f"""window.kaggle = {json.dumps(input_html, indent=2)};\n\n"""
+
+            with Path(__file__).parent.joinpath("render.html").open("r", encoding="utf-8") as f:
+                result = f.read()
+                result = result.replace(key, value)
+            return result
+
+        if mode == "html" or mode == "ipython":
+            # is_playing = not self.game_state.match_over()
+            window_kaggle = {
+                "debug": self.game_state.configs["debug"],
+                "playing": True,
+                "step": 0,
+                "controls": True,
+                "environment": self.render_env(),
+                "logs": "",
+                **kwargs,
+            }
+
+            player_html = get_html(window_kaggle)
+
+            if mode == "html":
+                return player_html
+            else:
+                raise NotImplementedError
+                # from IPython.display import display, HTML
+                # player_html = player_html.replace('"', '&quot;')
+                # width = get(kwargs, int, 300, path=["width"])
+                # height = get(kwargs, int, 300, path=["height"])
+                # html = f'<iframe srcdoc="{player_html}" width="{width}" height="{height}" frameborder="0"></iframe> '
+                # display(HTML(html))
 
     def reset(self):
         """
@@ -364,9 +450,17 @@ if __name__ == '__main__':
     obs = env.reset()
 
     while not env.game_state.match_over():
-        actions = {"player_0": {
-            "u_1": 1
-        }}
+        actions = {
+            "player_0": {
+                "u_1": 1
+            },
+            "player_1": {
+                "u_2": 3
+            }
+        }
         obs, rewards, dones, infos = env.step(actions)
+
+    with open("test.html", "w") as f:
+        f.write(env.render("html"))
 
     print(env.turn)
