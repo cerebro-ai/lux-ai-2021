@@ -17,8 +17,7 @@ from luxpythonenv.game.game import Game
 from pettingzoo import ParallelEnv
 from pettingzoo.utils import agent_selector
 
-from luxai21.env.utils import generate_map_state_matrix, switch_map_matrix_player_view, generate_game_state_matrix, \
-    generate_unit_states, smart_transfer_to_nearby
+from luxai21.env.utils import *
 
 UNIT_FOV = 3
 
@@ -34,6 +33,7 @@ class LuxEnv(ParallelEnv):
             config: Dict where the two keys are respected:
                 game: Config that gets passed to the game. Possible keys: width, height, seed
                 agent: Config for the agent, e.g if agents should be able to build carts
+                reward: Config which describes the value of every reward
 
         Example:
             {
@@ -45,19 +45,24 @@ class LuxEnv(ParallelEnv):
                 agent: {
                     "allow_carts": False
                 }
+                reward: {
+                    "BUILD_CITY_TILE": 0.01
+                    ...
+                }
             }
         """
         super().__init__()  # does nothing
 
-        game_config = config["game"]
-        agent_config = config["agent"]
+        self.game_config = config["game"]
+        self.agent_config = config["agent"]
+        self.reward_config = config["reward"]
 
-        self.game = Game(LuxMatchConfigs_Default.update(game_config))
-        self.game_previous_turn: Optional[Game] = None  # to derive rewards per turn
+        self.game_state = Game(LuxMatchConfigs_Default.update(self.game_config))
+        self.last_game_state: Optional[Game] = None  # to derive rewards per turn
 
         self.agent_config = {
             "allow_carts": False
-        }.update(agent_config)
+        }.update(self.agent_config)
 
         self.agents = ["player_0", "player_1"]
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
@@ -103,7 +108,7 @@ class LuxEnv(ParallelEnv):
         """
         TODO check return type
         """
-        self.game.reset()
+        self.game_state.reset()
         self.steps = 0
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next()
@@ -112,7 +117,7 @@ class LuxEnv(ParallelEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.game_previous_turn = copy.deepcopy(self.game)
+        self.last_game_state = copy.deepcopy(self.game_state)
 
         obs = self.generate_obs()
 
@@ -139,10 +144,10 @@ class LuxEnv(ParallelEnv):
             return {}, {}, {}, {}
 
         game_actions = self.translate_actions(actions)
-        is_game_done = self.game.run_turn_with_actions(actions=game_actions)
-        rewards = self.compute_rewards()
+        is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
+        rewards = self.compute_rewards(self.reward_config)
 
-        self.game_previous_turn = copy.deepcopy(self.game)
+        self.last_game_state = copy.deepcopy(self.game_state)
 
         observations = self.generate_obs()
 
@@ -178,13 +183,13 @@ class LuxEnv(ParallelEnv):
                 # city_tiles have no id, thus we find them by position
                 if piece_id.startswith("ct"):
                     ident, x_str, y_str = piece_id.split("_")
-                    cell = self.game.map.get_cell(int(x_str), int(y_str))
+                    cell = self.game_state.map.get_cell(int(x_str), int(y_str))
                     city_tile = cell.city_tile
                     if city_tile is None:
                         raise Exception(f"city_tile could not be found for {piece_id}")
 
                     action = self.action_map[action_id](
-                        game=self.game,
+                        game=self.game_state,
                         unit_id=None,
                         unit=None,
                         city_id=city_tile.city_id,
@@ -197,9 +202,9 @@ class LuxEnv(ParallelEnv):
                         translated_actions.append(action)
 
                 else:
-                    unit = self.game.get_unit(team=team, unit_id=piece_id)
+                    unit = self.game_state.get_unit(team=team, unit_id=piece_id)
                     action = self.action_map[action_id](
-                        game=self.game,
+                        game=self.game_state,
                         unit_id=unit.id,
                         unit=unit,
                         city_id=None,
@@ -212,30 +217,92 @@ class LuxEnv(ParallelEnv):
 
         return translated_actions
 
-    def compute_rewards(self) -> dict:
+    def compute_rewards(self, reward_config: dict) -> dict:
         """
-        TODO implement compute rewards
+        Args:
+            reward_config: Dict with the specific reward values
+        Returns:
+            A dict with the respective rewards of every agent/player for the current game_state in comparison to
+            the last_game_state
         """
+        reward_config = {
 
-        # check if game over
-        if self.game.match_over():
-            pass
+            "BUILD_CITY_TILE": 0.01,  # reward for every new build city, will be negative if a city_tile vanishes
+            "BUILD_WORKER": 0.01,
+            "BUILD_CART": 0.01,
 
-        # return {
-        #     agent: 0 for agent in self.agents
-        # }
+            "START_NEW_CITY": -0.005,  # we want to reward bigger cities because of cheaper upkeep
 
-        raise NotImplementedError
+            "CITY_AT_END": 1,
+            "UNIT_AT_END": 0.1,
+
+            "GAIN_RESEARCH_POINT": 0.01,
+            "RESEARCH_COAL": 0.1,
+            "RESEARCH_URANIUM": 0.5,
+
+            "WIN": 100,
+
+            "ZERO_SUM": True
+            # if true it will center the agent rewards around zero, and one agent will get a negative reward
+        }
+
+        rewards = np.zeros(2)
+
+        for i, agent in self.agents:
+
+            # reward new cities
+            delta_city_tiles = get_city_tile_count(self.game_state, i) - get_city_tile_count(self.last_game_state, i)
+            rewards[i] += delta_city_tiles * reward_config["BUILD_CITY_TILE"]
+
+            # reward new worker
+            delta_worker = get_worker_count(self.game_state, i) - get_worker_count(self.last_game_state, i)
+            rewards[i] += delta_worker * reward_config["BUILD_WORKER"]
+
+            # reward new cart
+            delta_cart = get_cart_count(self.game_state, i) - get_cart_count(self.last_game_state, i)
+            rewards[i] += delta_cart * reward_config["BUILD_CART"]
+
+            # reward new city
+            delta_city = get_city_count(self.game_state, i) - get_city_count(self.last_game_state, i)
+            rewards[i] += delta_city * reward_config["START_NEW_CITY"]
+
+            # research
+            delta_research_points = self.game_state.state["teamStates"][i]["researchPoints"] - \
+                                    self.last_game_state.state["teamStates"][i]["researchPoints"]
+            rewards[i] = delta_research_points * reward_config["GAIN_RESEARCH_POINT"]
+
+            if not self.last_game_state.state["teamStates"][i]["researched"]["coal"]:
+                if self.game_state.state["teamStates"][i]["researched"]["coal"]:
+                    rewards += reward_config["RESEARCH_COAL"]
+
+            if not self.last_game_state.state["teamStates"][i]["researched"]["uranium"]:
+                if self.game_state.state["teamStates"][i]["researched"]["uranium"]:
+                    rewards += reward_config["RESEARCH_URANIUM"]
+
+            # check if game over
+            if self.game_state.match_over():
+                rewards[i] += get_city_tile_count(self.game_state, i) * reward_config["CITY_AT_END"]
+                rewards[i] += self.game_state.get_teams_units(i) * reward_config["UNIT_AT_END"]
+
+                if i == self.game_state.get_winning_team():
+                    rewards[i] += reward_config["WIN"]
+
+        if reward_config["ZERO_SUM"]:
+            rewards = rewards - np.mean(rewards)
+
+        return {
+            self.agents[i]: rewards[i] for i in range(len(self.agents))
+        }
 
     def generate_obs(self):
-        _map_player0 = generate_map_state_matrix(self.game)
+        _map_player0 = generate_map_state_matrix(self.game_state)
         _map_player1 = switch_map_matrix_player_view(_map_player0)
 
-        game_state_player0 = generate_game_state_matrix(self.game, team=0)
-        game_state_player1 = generate_game_state_matrix(self.game, team=1)
+        game_state_player0 = generate_game_state_matrix(self.game_state, team=0)
+        game_state_player1 = generate_game_state_matrix(self.game_state, team=1)
 
-        unit_states_player0 = generate_unit_states(self.game, team=0, config=self.agent_config)
-        unit_states_player1 = generate_unit_states(self.game, team=1, config=self.agent_config)
+        unit_states_player0 = generate_unit_states(self.game_state, team=0, config=self.agent_config)
+        unit_states_player1 = generate_unit_states(self.game_state, team=1, config=self.agent_config)
 
         return {
             self.agents[0]: {
@@ -277,7 +344,7 @@ class LuxEnv(ParallelEnv):
                                        high=1
                                        ),
                 })
-                for unit in self.game.get_teams_units(i)
+                for unit in self.game_state.get_teams_units(i)
             }
         }) for i in [0, 1]}
 
