@@ -76,7 +76,7 @@ def generate_map_state_matrix(game_state: Game):
             map_state[unit.pos.x][unit.pos.y][15] = unit.cooldown / \
                                                     GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["WORKER"]
             map_state[unit.pos.x][unit.pos.y][16] = 0 if in_city \
-                                                    else GAME_CONSTANTS["PARAMETERS"]["LIGHT_UPKEEP"]["WORKER"]
+                else GAME_CONSTANTS["PARAMETERS"]["LIGHT_UPKEEP"]["WORKER"]
             map_state[unit.pos.x][unit.pos.y][16] /= fuel_normalizer
 
         elif unit.is_cart():
@@ -90,7 +90,7 @@ def generate_map_state_matrix(game_state: Game):
             map_state[unit.pos.x][unit.pos.y][15] = unit.cooldown / \
                                                     GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["CART"]
             map_state[unit.pos.x][unit.pos.y][16] = 0 if in_city \
-                                                    else GAME_CONSTANTS["PARAMETERS"]["LIGHT_UPKEEP"]["CART"]
+                else GAME_CONSTANTS["PARAMETERS"]["LIGHT_UPKEEP"]["CART"]
             map_state[unit.pos.x][unit.pos.y][16] /= fuel_normalizer
 
     for unit in game_state.state["teamStates"][1]["units"].values():
@@ -198,8 +198,12 @@ def generate_game_state_matrix(game_state: Game, team: int):
     team_total_fuel = game_state.stats['teamStats'][team]['fuelGenerated'] / total_fuel_normalizer
     enemy_total_fuel = game_state.stats['teamStats'][(team + 1) % 2]['fuelGenerated'] / total_fuel_normalizer
     team_research_points = game_state.state["teamStates"][team]["researchPoints"] / research_points_normalizer
+    team_researched_coal = game_state.state["teamStates"][team]["researched"]["coal"]
+    team_researched_uranium = game_state.state["teamStates"][team]["researched"]["uranium"]
     enemy_research_points = game_state.state["teamStates"][(team + 1) % 2][
                                 "researchPoints"] / research_points_normalizer
+    enemy_researched_coal = game_state.state["teamStates"][(team + 1) % 2]["researched"]["coal"]
+    enemy_researched_uranium = game_state.state["teamStates"][(team + 1) % 2]["researched"]["uranium"]
     team_wood = game_state.stats['teamStats'][team]['resourcesCollected']['wood'] / wood_normalizer
     team_coal = game_state.stats['teamStats'][team]['resourcesCollected']['coal'] / coal_normalizer
     team_uranium = game_state.stats['teamStats'][team]['resourcesCollected']['uranium'] / uranium_normalizer
@@ -210,8 +214,9 @@ def generate_game_state_matrix(game_state: Game, team: int):
     return np.array(
         [game_progress, days_until_night, is_night, night_days_left, team_cities, enemy_cities, team_citytiles,
          enemy_citytiles, team_workers, enemy_workers, team_carts, enemy_carts, team_total_fuel,
-         enemy_total_fuel, team_research_points, enemy_research_points, team_wood, team_coal,
-         team_uranium, enemy_wood, enemy_coal, enemy_uranium])
+         enemy_total_fuel, team_research_points, team_researched_coal, team_researched_uranium, enemy_research_points,
+         enemy_researched_coal, enemy_researched_uranium, team_wood, team_coal, team_uranium, enemy_wood, enemy_coal,
+         enemy_uranium])
 
 
 def generate_unit_states(game_state: Game, team: int):
