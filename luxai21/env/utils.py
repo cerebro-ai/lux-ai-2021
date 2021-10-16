@@ -433,3 +433,38 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
         raise Exception("unit and city_tile both None")
 
     return action_mask
+
+
+def get_city_count(game_state: Game, team: int):
+    count = 0
+    for city in game_state.cities.values():
+        if city.team == team:
+            count += 1
+    return count
+
+
+def get_city_tile_count(game_state: Game, team: int):
+    count = 0
+    for city in game_state.cities.values():
+        if city.team == team:
+            for cell in city.city_cells:
+                city_tile = cell.city_tile
+                if city_tile is not None:
+                    count += 1
+    return count
+
+
+def get_worker_count(game_state: Game, team: int):
+    count = 0
+    for unit in game_state.get_teams_units(team):
+        if unit.is_worker():
+            count += 1
+    return count
+
+
+def get_cart_count(game_state: Game, team: int):
+    count = 0
+    for unit in game_state.get_teams_units(team):
+        if unit.is_cart():
+            count += 1
+    return count
