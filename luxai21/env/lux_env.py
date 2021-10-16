@@ -25,24 +25,36 @@ class LuxEnv(ParallelEnv):
     Lux Multi Agent Environment following PettingZoo
     """
 
-    def __init__(self, game_config: dict = None, obs_config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         """
         Args:
-            game_config: Config that gets passed to the game. Possible keys:
-                width, height, seed
+            config: Dict where the two keys are respected:
+                game: Config that gets passed to the game. Possible keys: width, height, seed
+                agent: Config for the agent, e.g if agents should be able to build carts
 
-            obs_config: Config for the observation & action_mask
-                e.g if agents should be able to build carts
+        Example:
+            {
+                game: {
+                    height: 12
+                    width: 12
+                    seed: 128343
+                }
+                agent: {
+                    "allow_carts": False
+                }
+            }
         """
         super().__init__()  # does nothing
+
+        game_config = config["game"]
+        agent_config = config["agent"]
 
         self.game = Game(LuxMatchConfigs_Default.update(game_config))
         self.game_previous_turn: Optional[Game] = None  # to derive rewards per turn
 
-        self.obs_config = {
+        self.agent_config = {
             "allow_carts": False
-        }
-        self.obs_config.update(obs_config)
+        }.update(agent_config)
 
         self.agents = ["player_0", "player_1"]
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
@@ -150,8 +162,8 @@ class LuxEnv(ParallelEnv):
         game_state_player0 = generate_game_state_matrix(self.game, team=0)
         game_state_player1 = generate_game_state_matrix(self.game, team=1)
 
-        unit_states_player0 = generate_unit_states(self.game, team=0, config=self.obs_config)
-        unit_states_player1 = generate_unit_states(self.game, team=1, config=self.obs_config)
+        unit_states_player0 = generate_unit_states(self.game, team=0, config=self.agent_config)
+        unit_states_player1 = generate_unit_states(self.game, team=1, config=self.agent_config)
 
         return {
             self.agents[0]: {
