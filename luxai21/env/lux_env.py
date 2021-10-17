@@ -152,7 +152,7 @@ class LuxEnv(ParallelEnv):
             key = "/*window.kaggle*/"
             value = f"""window.kaggle = {json.dumps(input_html, indent=2)};\n\n"""
 
-            with Path(__file__).parent.joinpath("light_render.html").open("r", encoding="utf-8") as f:
+            with Path(__file__).parent.joinpath("render_index.html").open("r", encoding="utf-8") as f:
                 result = f.read()
                 result = result.replace(key, value)
             return result
