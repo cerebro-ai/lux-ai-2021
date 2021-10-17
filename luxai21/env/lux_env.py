@@ -18,8 +18,6 @@ from pettingzoo.utils import agent_selector
 
 from luxai21.env.utils import *
 
-UNIT_FOV = 3
-
 
 class LuxEnv(ParallelEnv):
     """
