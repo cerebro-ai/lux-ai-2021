@@ -267,17 +267,19 @@ class LuxEnv(ParallelEnv):
                     if city_tile is None:
                         raise Exception(f"city_tile could not be found for {piece_id}")
 
-                    action = self.action_map[action_id](
-                        game=self.game_state,
-                        unit_id=None,
-                        unit=None,
-                        city_id=city_tile.city_id,
-                        city_tile=city_tile,
-                        team=team,
-                        x=int(x_str),
-                        y=int(y_str)
-                    )
-                    if action is not None:
+                    action_class = self.action_map[action_id]
+                    if action_class is not None:
+                        action = action_class(
+                            game=self.game_state,
+                            unit_id=None,
+                            unit=None,
+                            city_id=city_tile.city_id,
+                            city_tile=city_tile,
+                            team=team,
+                            x=int(x_str),
+                            y=int(y_str)
+                        )
+
                         translated_actions.append(action)
 
                 else:

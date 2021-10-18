@@ -4,9 +4,11 @@ from typing import List, Deque
 import numpy as np
 import torch
 from torch import nn, optim, Tensor
-from torch_geometric.graphgym import GNN, GCNConv
+from torch.distributions import Categorical
+from torch_geometric.nn import GCNConv
 
 from luxai21.agent.lux_agent import LuxAgent
+from luxai21.models.gnn.utils import get_board_edge_index
 
 
 def compute_gae(
@@ -37,7 +39,9 @@ def compute_gae(
 def ppo_iter(
         epoch: int,
         mini_batch_size: int,
-        states: torch.Tensor,
+        piece_states: torch.Tensor,
+        action_masks: torch.Tensor,
+        map_states: torch.Tensor,
         actions: torch.Tensor,
         values: torch.Tensor,
         log_probs: torch.Tensor,
@@ -45,13 +49,14 @@ def ppo_iter(
         advantages: torch.Tensor,
 ):
     """Yield mini-batches."""
-    batch_size = states.size(0)
+    batch_size = piece_states.size(0)
     for _ in range(epoch):
         for _ in range(batch_size // mini_batch_size):
             rand_ids = np.random.choice(batch_size, mini_batch_size)
-            yield states[rand_ids, :], actions[rand_ids], values[
-                rand_ids
-            ], log_probs[rand_ids], returns[rand_ids], advantages[rand_ids]
+            yield piece_states[rand_ids, :], action_masks[rand_ids, :], map_states[rand_ids, :], actions[rand_ids], \
+                  values[
+                      rand_ids
+                  ], log_probs[rand_ids], returns[rand_ids], advantages[rand_ids]
 
 
 class Coach(nn.Module):
@@ -63,12 +68,52 @@ class Coach(nn.Module):
         super(Coach, self).__init__()
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, out_channels)
+        self.activation = nn.ReLU()
 
-    def forward(self, lux_obs: dict, edge_index: torch.Tensor):
-        map = lux_obs["_map"]
-        x = self.conv1(map, edge_index).relu()
-        x = self.conv2(x, edge_index).relu()
+    def forward(self, map: Tensor, edge_index: torch.Tensor):
+        x = self.conv1(map, edge_index)
+        x = self.activation(x)
+        x = self.conv2(x, edge_index)
+        x = self.activation(x)
         return x
+
+
+class PieceActor(nn.Module):
+    def __init__(self, in_dim, hidden_dim, out_dim):
+        super(PieceActor, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, out_dim)
+        )
+
+    def forward(self, x, action_mask):
+        logits = self.model(x)
+        mask_value = torch.finfo(logits.dtype).min
+        logits_masked = logits.masked_fill(~action_mask, mask_value)
+        dist = Categorical(logits=logits_masked)
+        action = dist.sample()  # TODO check dimension
+        return action, dist
+
+
+class Critic(nn.Module):
+    def __init__(self, in_dim, hidden_dim, out_dim):
+        super(Critic, self).__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(in_channels=in_dim, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(3, 3), stride=(1, 1)),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(1 * 8 * 8, 1)
+        )
+
+    def forward(self, x: Tensor):
+        if len(x.size()) == 3:
+            x = torch.unsqueeze(x, 0)
+        x = torch.permute(x, (0, 3, 1, 2))
+        value = self.model(x)
+        return value
 
 
 def extract_actions(map_strategy: Tensor, pieces: dict, model: nn.Module):
@@ -90,8 +135,19 @@ def extract_actions(map_strategy: Tensor, pieces: dict, model: nn.Module):
 
 
 class LuxPPOAgent(LuxAgent):
+    """
+    TODO implement setting random seed
+    if torch.backends.cudnn.enabled:
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
-    def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epoch, rollout_len, entropy_weight):
+    seed = 777
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    """
+
+    def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epoch, entropy_weight):
         super(LuxPPOAgent, self).__init__()
 
         self.learning_rate = learning_rate
@@ -100,7 +156,6 @@ class LuxPPOAgent(LuxAgent):
         self.batch_size = batch_size
         self.epsilon = epsilon
         self.epoch = epoch
-        self.rollout_len = rollout_len
         self.entropy_weight = entropy_weight
 
         # device: cpu / gpu
@@ -109,29 +164,175 @@ class LuxPPOAgent(LuxAgent):
         )
         print(self.device)
 
+        self.strategy_dim = 32
+        self.piece_dim = 1
+
         # networks
-        obs_dim = env.observation_space.shape[0]
-        action_dim = env.action_space.shape[0]
-        self.actor = Actor(obs_dim, action_dim).to(self.device)
-        self.critic = Critic(obs_dim).to(self.device)
+        self.edge_index = get_board_edge_index(12, 12, with_meta_node=False)  # TODO get sizes dynamically
+        self.coach = Coach(19, 32, 16)
+        self.value_map = Coach(19, 32, 16)
+        self.piece_actor = PieceActor(in_dim=16 + 1, hidden_dim=24, out_dim=13).to(self.device)
+
+        # TODO implement critic on strategy map
+        self.critic = Critic(in_dim=16, hidden_dim=8, out_dim=1).to(self.device)
 
         # optimizer
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
+        self.actor_optimizer = optim.Adam(
+            [
+                {"params": self.coach.parameters()},
+                {"params": self.piece_actor.parameters()}
+            ], lr=self.learning_rate)
+        self.critic_optimizer = optim.Adam([
+                {"params": self.value_map.parameters()},
+                {"params": self.critic.parameters()}
+            ], lr=self.learning_rate)
 
         # memory for training
-        self.states: List[torch.Tensor] = []
+        self.piece_states: List[torch.Tensor] = []
+        self.action_masks: List[torch.Tensor] = []
+        self.map_states: List[torch.Tensor] = []
         self.actions: List[torch.Tensor] = []
         self.rewards: List[torch.Tensor] = []
         self.values: List[torch.Tensor] = []
         self.masks: List[torch.Tensor] = []
         self.log_probs: List[torch.Tensor] = []
 
+        self.last_returned_actions_length = 0
+
         # total steps count
         self.total_step = 1
 
         # mode: train / test
         self.is_test = False
+
+    def generate_actions(self, observation: dict):
+        flattened_map = torch.reshape(torch.FloatTensor(observation["_map"]), (-1, 19))
+        coach_state = torch.reshape(self.coach(flattened_map, self.edge_index), (12, 12, -1))
+        value_state =
+        actions = {}
+        for piece_id, piece in observation.items():
+            if piece_id.startswith("_"):
+                continue
+            action = self.select_action(coach_state, piece)
+            actions[piece_id] = int(action)
+        self.last_returned_actions_length = len(actions.keys())
+        return actions
+
+    def receive_reward(self, reward: float, done: int):
+        length = self.last_returned_actions_length
+        rewards = torch.FloatTensor([reward / length]).repeat(length).to(self.device)
+        masks = torch.FloatTensor([1 - done]).repeat(length).to(self.device)
+        self.masks.extend(masks)
+        self.rewards.extend(rewards)
+
+    def select_action(self, strategy_state: Tensor, piece: dict):
+        """Select a action for a pre-computed strategy vector from the map and piece
+
+        TODO incorporate piece history
+        """
+        pos = piece["pos"]
+        cell_strategy = strategy_state[pos[0], pos[1], :]  # get the strategy of the cell where the piece is located
+        piece_type = torch.Tensor([piece["type"]])
+
+        piece_state = torch.unsqueeze(torch.cat([cell_strategy, piece_type]), 0)
+        action_mask = torch.unsqueeze(torch.BoolTensor(piece["action_mask"]), 0)
+        action, dist = self.piece_actor(piece_state, action_mask)  # TODO add action mask
+        dist: Categorical = dist
+        selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
+
+        if not self.is_test:
+            # in training mode
+            value = self.critic(strategy_state)
+            self.piece_states.append(piece_state)
+            self.action_masks.append(action_mask)
+            self.map_states.append(torch.unsqueeze(strategy_state, 0))
+            self.actions.append(torch.unsqueeze(selected_action, 0))
+            self.values.append(value)
+            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0))
+
+        return selected_action.cpu().detach().numpy()
+
+    def update_model(self, last_obs):
+        device = self.device
+
+        _map = torch.FloatTensor(last_obs["_map"]).to(device)
+        _map_flattened = torch.reshape(_map, (-1, 19))
+        next_map_state = torch.reshape(self.coach(_map_flattened, self.edge_index), (12, 12, -1))
+
+        next_value = self.critic(next_map_state)
+
+        returns = compute_gae(next_value,
+                              self.rewards,
+                              self.masks,
+                              self.values,
+                              self.gamma,
+                              self.tau)
+
+        states = torch.cat(self.piece_states)
+        action_masks = torch.cat(self.action_masks)
+        map_states = torch.cat(self.map_states)
+        actions = torch.cat(self.actions)
+        returns = torch.cat(returns).detach()
+        values = torch.cat(self.values).detach()
+        log_probs = torch.cat(self.log_probs).detach()
+        advantages = returns - values
+
+        actor_losses, critic_losses = [], []
+
+        for piece_state, action_mask, map_state, action, old_value, old_log_prob, return_, adv in ppo_iter(
+                epoch=self.epoch,
+                mini_batch_size=self.batch_size,
+                piece_states=states,
+                action_masks=action_masks,
+                map_states=map_states,
+                actions=actions,
+                values=values,
+                log_probs=log_probs,
+                returns=returns,
+                advantages=advantages
+        ):
+            _, dist = self.piece_actor(piece_state, action_mask)
+            log_prob = dist.log_prob(action)
+            ratio = (log_prob - old_log_prob).exp()
+
+            # actor loss
+            surr_loss = ratio * adv
+            clipped_surr_loss = (
+                    torch.clamp(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * adv
+            )
+
+            entropy = dist.entropy().mean()
+
+            actor_loss = (
+                    - torch.min(surr_loss, clipped_surr_loss).mean()
+                    - entropy * self.entropy_weight
+            )
+
+            # critic loss
+            value = self.critic(map_state)
+            critic_loss = (return_ - value).pow(2).mean()
+
+            # train critic
+            self.critic_optimizer.zero_grad()
+            critic_loss.backward(retain_graph=True)
+            self.critic_optimizer.step()
+
+            # train actor
+
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
+
+            actor_losses.append(actor_loss.item())
+            critic_losses.append(critic_loss.item())
+
+        self.piece_states, self.actions, self.rewards = [], [], []
+        self.values, self.masks, self.log_probs = [], [], []
+
+        actor_loss = sum(actor_losses) / len(actor_losses)
+        critic_loss = sum(critic_losses) / len(critic_losses)
+
+        return actor_loss, critic_loss
 
     def load(self, model):
         #  TODO implement load from saved state

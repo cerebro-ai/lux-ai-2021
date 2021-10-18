@@ -20,7 +20,7 @@ class LuxAgent:
         # TODO implement get_actions
         pass
 
-    def receive_reward(self, reward: float):
+    def receive_reward(self, reward: float, done: int):
         # TODO implement get_reward
         pass
 
