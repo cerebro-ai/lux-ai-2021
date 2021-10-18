@@ -67,6 +67,7 @@ class LuxEnv(ParallelEnv):
         self.agent_config.update(self.agent_config)
 
         self.agents = ["player_0", "player_1"]
+        self.possible_agents = self.agents
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = None
@@ -172,7 +173,7 @@ class LuxEnv(ParallelEnv):
             if mode == "html":
                 return player_html
             elif mode == "ipython":
-                #from IPython.display import display, HTML
+                # from IPython.display import display, HTML
                 player_html = player_html.replace('"', '&quot;')
                 width = 300
                 height = 300
@@ -399,7 +400,7 @@ class LuxEnv(ParallelEnv):
     @property
     def observation_spaces(self):
         return {self.agents[i]: Dict({
-            '_map': Box(shape=(18, 32, 32),
+            '_map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
                         dtype=np.float32,
                         low=-float('inf'),
                         high=float('inf')
@@ -412,11 +413,11 @@ class LuxEnv(ParallelEnv):
             **{
                 unit: Dict({
                     'type': Discrete(3),
-                    'state': Box(shape=(3,),
-                                 dtype=np.float32,
-                                 low=float('-inf'),
-                                 high=float('inf')
-                                 ),
+                    'pos': Box(shape=(2,),
+                               dtype=np.int32,
+                               low=float('-inf'),
+                               high=float('inf')
+                               ),
                     'action_mask': Box(shape=(12,),
                                        dtype=np.int,
                                        low=0,
@@ -455,9 +456,9 @@ if __name__ == '__main__':
         }
         obs, rewards, dones, infos = env.step(actions)
 
-    #with open("test.html", "w") as f:
-        #html = env.render("html")
-        #f.write(html)
+    # with open("test.html", "w") as f:
+    # html = env.render("html")
+    # f.write(html)
     if use_wandb:
         wandb.log({"LuxEnv": wandb.Html(env.render("html"), inject=False)})
     print(env.turn)
