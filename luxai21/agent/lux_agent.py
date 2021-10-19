@@ -1,6 +1,7 @@
 import numpy as np
 from torch import nn
 from torch.distributions import Categorical
+import wandb
 
 
 class LuxAgent:
@@ -18,14 +19,14 @@ class LuxAgent:
 
     def generate_actions(self, observation: dict):
         # TODO implement get_actions
-        pass
+        raise NotImplementedError('generate_action not implemented')
 
     def receive_reward(self, reward: float, done: int):
         # TODO implement get_reward
-        pass
+        raise NotImplementedError('receive_reward not implemented')
 
     def match_over_callback(self):
-        pass
+        raise NotImplementedError('match_over_callback not implemented')
 
 
 def model_forward(obs: dict):
