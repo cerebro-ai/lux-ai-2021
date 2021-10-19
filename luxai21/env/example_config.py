@@ -1,6 +1,6 @@
 config = {
     "wandb":{
-        "project": "cerebro-ai",
+        "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"]
     },
