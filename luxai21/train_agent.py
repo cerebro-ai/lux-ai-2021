@@ -4,17 +4,17 @@ import numpy as np
 import torch
 import wandb
 
-from luxai21.agent.lux_agent import LuxAgent
 from luxai21.agent.ppo_agent import LuxPPOAgent
 from luxai21.env import example_config
 from luxai21.env.lux_env import LuxEnv
-from luxai21.env.utils import get_city_tile_count, log_citytiles_game_end
+from luxai21.env.utils import log_citytiles_game_end
 
-if torch.backends.cudnn.enabled:
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
-    seed = 777
+def set_seed(seed: int):
+    if torch.backends.cudnn.enabled:
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -22,7 +22,11 @@ if torch.backends.cudnn.enabled:
 
 def main():
     config = example_config.config
+
+    set_seed(config["seed"])
+
     wandb.init(
+        entity=config["wandb"]["entity"],
         project=config["wandb"]["project"],
         notes=config["wandb"]["notes"],
         tags=config["wandb"]["tags"],
@@ -60,9 +64,9 @@ def main():
         obs = env.reset()
         done = env.game_state.match_over()
 
-
         while not done:
-            print("turn", env.turn)
+            if env.turn % 50 == 0:
+                print("turn", env.turn)
             actions = {
                 player: agent.generate_actions(obs[player])
                 for player, agent in agents.items()
