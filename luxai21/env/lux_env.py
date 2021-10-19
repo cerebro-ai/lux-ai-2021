@@ -4,6 +4,7 @@ Lux AI env following the PettingZoo ParallelEnv
 
 import copy
 import json
+import random
 from functools import partial
 from pathlib import Path
 from typing import List, Mapping, Tuple, Any
@@ -186,6 +187,9 @@ class LuxEnv(ParallelEnv):
         Returns:
             Observation of the first state
         """
+        # get new map_seed
+        seed = random.randint(0, 200000)
+        self.game_state.configs["seed"] = seed
         self.game_state.reset()
         self.turn = 0
         self._agent_selector.reinit(self.agents)
