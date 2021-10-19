@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 from luxpythonenv.game.actions import TransferAction
@@ -424,7 +424,7 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
             return action_mask
 
         if city_tile.can_build_unit():
-            if get_unit_count(game_state, team) < get_city_tile_count(game_state, team):
+            if get_unit_count(game_state.state, team) < get_city_tile_count(game_state.cities, team):
                 action_mask[10] = 1
                 if config["allow_carts"]:
                     action_mask[11] = 1
@@ -437,17 +437,17 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
     return action_mask
 
 
-def get_city_count(game_state: Game, team: int):
+def get_city_count(game_state_cities: Dict, team: int):
     count = 0
-    for city in game_state.cities.values():
+    for city in game_state_cities.values():
         if city.team == team:
             count += 1
     return count
 
 
-def get_city_tile_count(game_state: Game, team: int):
+def get_city_tile_count(game_state_cities: Dict, team: int):
     count = 0
-    for city in game_state.cities.values():
+    for city in game_state_cities.values():
         if city.team == team:
             for cell in city.city_cells:
                 city_tile = cell.city_tile
@@ -456,21 +456,21 @@ def get_city_tile_count(game_state: Game, team: int):
     return count
 
 
-def get_unit_count(game_state: Game, team: int):
-    return len(game_state.get_teams_units(team))
+def get_unit_count(game_state: Dict, team: int):
+    return len(game_state["teamStates"][team]["units"])
 
 
-def get_worker_count(game_state: Game, team: int):
+def get_worker_count(game_state: Dict, team: int):
     count = 0
-    for unit in game_state.get_teams_units(team).values():
+    for unit in game_state["teamStates"][team]["units"].values():
         if unit.is_worker():
             count += 1
     return count
 
 
-def get_cart_count(game_state: Game, team: int):
+def get_cart_count(game_state: Dict, team: int):
     count = 0
-    for unit in game_state.get_teams_units(team).values():
+    for unit in game_state["teamStates"][team]["units"].values():
         if unit.is_cart():
             count += 1
     return count

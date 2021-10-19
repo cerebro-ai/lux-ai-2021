@@ -6,7 +6,7 @@ import copy
 import json
 from functools import partial
 from pathlib import Path
-from typing import List, Mapping, Tuple
+from typing import List, Mapping, Tuple, Any
 
 import wandb
 from gym.spaces import Discrete, Dict, Box
@@ -59,7 +59,8 @@ class LuxEnv(ParallelEnv):
         self.game_state = Game(lux_game_config)
         # rendering
         self.game_state.start_replay_logging(stateful=True)
-        self.last_game_state: Optional[Game] = None  # to derive rewards per turn
+        self.last_game_state: Optional[Any] = None  # to derive rewards per turn
+        self.last_game_cities: Optional[Dict] = None
 
         self.agent_config = {
             "allow_carts": False
@@ -67,6 +68,7 @@ class LuxEnv(ParallelEnv):
         self.agent_config.update(self.agent_config)
 
         self.agents = ["player_0", "player_1"]
+        self.possible_agents = self.agents
         self.agent_name_mapping = {'player_0': 0, 'player_1': 1}
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = None
@@ -75,8 +77,8 @@ class LuxEnv(ParallelEnv):
 
         self.action_map = [
             partial(MoveAction, direction=Constants.DIRECTIONS.CENTER),  # This is the do-nothing action
-            partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),
-            partial(MoveAction, direction=Constants.DIRECTIONS.WEST),
+            partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),  # 1
+            partial(MoveAction, direction=Constants.DIRECTIONS.WEST),  # 2
             partial(MoveAction, direction=Constants.DIRECTIONS.SOUTH),
             partial(MoveAction, direction=Constants.DIRECTIONS.EAST),
             partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER),
@@ -86,7 +88,7 @@ class LuxEnv(ParallelEnv):
             None,  # City do nothing
             SpawnWorkerAction,
             SpawnCartAction,
-            ResearchAction
+            ResearchAction  # 12
         ]
 
         self._cumulative_rewards = dict()
@@ -172,7 +174,7 @@ class LuxEnv(ParallelEnv):
             if mode == "html":
                 return player_html
             elif mode == "ipython":
-                #from IPython.display import display, HTML
+                # from IPython.display import display, HTML
                 player_html = player_html.replace('"', '&quot;')
                 width = 300
                 height = 300
@@ -194,7 +196,8 @@ class LuxEnv(ParallelEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.last_game_state = copy.deepcopy(self.game_state)
+        self.last_game_state = copy.deepcopy(self.game_state.state)
+        self.last_game_cities = copy.deepcopy(self.game_state.cities)
 
         obs = self.generate_obs()
 
@@ -225,7 +228,8 @@ class LuxEnv(ParallelEnv):
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
         rewards = self.compute_rewards(self.reward_config)
 
-        self.last_game_state = copy.deepcopy(self.game_state)
+        self.last_game_state = copy.deepcopy(self.game_state.state)
+        self.last_game_cities = copy.deepcopy(self.game_state.cities)
 
         observations = self.generate_obs()
 
@@ -266,17 +270,19 @@ class LuxEnv(ParallelEnv):
                     if city_tile is None:
                         raise Exception(f"city_tile could not be found for {piece_id}")
 
-                    action = self.action_map[action_id](
-                        game=self.game_state,
-                        unit_id=None,
-                        unit=None,
-                        city_id=city_tile.city_id,
-                        city_tile=city_tile,
-                        team=team,
-                        x=int(x_str),
-                        y=int(y_str)
-                    )
-                    if action is not None:
+                    action_class = self.action_map[action_id]
+                    if action_class is not None:
+                        action = action_class(
+                            game=self.game_state,
+                            unit_id=None,
+                            unit=None,
+                            city_id=city_tile.city_id,
+                            city_tile=city_tile,
+                            team=team,
+                            x=int(x_str),
+                            y=int(y_str)
+                        )
+
                         translated_actions.append(action)
 
                 else:
@@ -330,37 +336,38 @@ class LuxEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
 
             # reward new cities
-            delta_city_tiles = get_city_tile_count(self.game_state, i) - get_city_tile_count(self.last_game_state, i)
+            delta_city_tiles = get_city_tile_count(self.game_state.cities, i) - get_city_tile_count(
+                self.last_game_cities, i)
             rewards[i] += delta_city_tiles * reward_config["BUILD_CITY_TILE"]
 
             # reward new worker
-            delta_worker = get_worker_count(self.game_state, i) - get_worker_count(self.last_game_state, i)
+            delta_worker = get_worker_count(self.game_state.state, i) - get_worker_count(self.last_game_state, i)
             rewards[i] += delta_worker * reward_config["BUILD_WORKER"]
 
             # reward new cart
-            delta_cart = get_cart_count(self.game_state, i) - get_cart_count(self.last_game_state, i)
+            delta_cart = get_cart_count(self.game_state.state, i) - get_cart_count(self.last_game_state, i)
             rewards[i] += delta_cart * reward_config["BUILD_CART"]
 
             # reward new city
-            delta_city = get_city_count(self.game_state, i) - get_city_count(self.last_game_state, i)
+            delta_city = get_city_count(self.game_state.cities, i) - get_city_count(self.last_game_cities, i)
             rewards[i] += delta_city * reward_config["START_NEW_CITY"]
 
             # research
             delta_research_points = self.game_state.state["teamStates"][i]["researchPoints"] - \
-                                    self.last_game_state.state["teamStates"][i]["researchPoints"]
+                                    self.last_game_state["teamStates"][i]["researchPoints"]
             rewards[i] = delta_research_points * reward_config["GAIN_RESEARCH_POINT"]
 
-            if not self.last_game_state.state["teamStates"][i]["researched"]["coal"]:
+            if not self.last_game_state["teamStates"][i]["researched"]["coal"]:
                 if self.game_state.state["teamStates"][i]["researched"]["coal"]:
                     rewards += reward_config["RESEARCH_COAL"]
 
-            if not self.last_game_state.state["teamStates"][i]["researched"]["uranium"]:
+            if not self.last_game_state["teamStates"][i]["researched"]["uranium"]:
                 if self.game_state.state["teamStates"][i]["researched"]["uranium"]:
                     rewards += reward_config["RESEARCH_URANIUM"]
 
             # check if game over
             if self.game_state.match_over():
-                rewards[i] += get_city_tile_count(self.game_state, i) * reward_config["CITY_AT_END"]
+                rewards[i] += get_city_tile_count(self.game_state.cities, i) * reward_config["CITY_AT_END"]
                 rewards[i] += len(self.game_state.get_teams_units(i)) * reward_config["UNIT_AT_END"]
 
                 if i == self.game_state.get_winning_team():
@@ -399,7 +406,7 @@ class LuxEnv(ParallelEnv):
     @property
     def observation_spaces(self):
         return {self.agents[i]: Dict({
-            '_map': Box(shape=(18, 32, 32),
+            '_map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
                         dtype=np.float32,
                         low=-float('inf'),
                         high=float('inf')
@@ -412,11 +419,11 @@ class LuxEnv(ParallelEnv):
             **{
                 unit: Dict({
                     'type': Discrete(3),
-                    'state': Box(shape=(3,),
-                                 dtype=np.float32,
-                                 low=float('-inf'),
-                                 high=float('inf')
-                                 ),
+                    'pos': Box(shape=(2,),
+                               dtype=np.int32,
+                               low=float('-inf'),
+                               high=float('inf')
+                               ),
                     'action_mask': Box(shape=(12,),
                                        dtype=np.int,
                                        low=0,
@@ -455,9 +462,9 @@ if __name__ == '__main__':
         }
         obs, rewards, dones, infos = env.step(actions)
 
-    #with open("test.html", "w") as f:
-        #html = env.render("html")
-        #f.write(html)
+    # with open("test.html", "w") as f:
+    # html = env.render("html")
+    # f.write(html)
     if use_wandb:
         wandb.log({"LuxEnv": wandb.Html(env.render("html"), inject=False)})
     print(env.turn)
