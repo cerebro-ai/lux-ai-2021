@@ -129,8 +129,10 @@ class PieceActor(nn.Module):
         cell_state_flat = map_emb_flat[:, j, :]
         cell_state = cell_state_flat.squeeze(1)
         # map_emb_numpy[:, pos[:, 0], pos[:, 1], :]
+
+        # cell_state should be (80, 24)
         piece_state = torch.cat([cell_state, p_type], 1)
-        # piece_state (80, 24)
+        # piece_state = (80, 25)
 
         logits = self.model(piece_state)
         mask_value = torch.finfo(logits.dtype).min
