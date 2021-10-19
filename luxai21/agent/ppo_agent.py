@@ -124,7 +124,7 @@ class PieceActor(nn.Module):
         mask_value = torch.finfo(logits.dtype).min
         logits_masked = logits.masked_fill(~action_mask, mask_value)
         dist = Categorical(logits=logits_masked)
-        action = dist.sample()  # TODO check dimension
+        action = dist.sample()
         return action, dist
 
 
@@ -155,24 +155,6 @@ class Critic(nn.Module):
         return value
 
 
-def extract_actions(map_strategy: Tensor, pieces: dict, model: nn.Module):
-    """
-    Args:
-        map_strategy: Tensor (strategy_dim, WIDTH, HEIGHT)
-        pieces: Dict with piece information: type, pos, action_mask
-    """
-    actions = {}
-    for piece_id, piece in pieces.items():
-        pos_x = piece["pos"][0]
-        pos_y = piece["pos"][1]
-        strategy = map_strategy[:, pos_x, pos_y]
-        type = torch.Tensor(piece["type"])
-        x = torch.cat([strategy, type])
-        action = model(x)
-
-        actions[piece_id] = action
-
-
 def piece_to_tensor(piece: dict):
     p_type = torch.IntTensor([piece["type"]])
     pos = torch.IntTensor(piece["pos"])
@@ -189,19 +171,8 @@ def split_piece_tensor(piece_tensor: Tensor):
 
 
 class LuxPPOAgent(LuxAgent):
-    """
-    TODO implement setting random seed
-    if torch.backends.cudnn.enabled:
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
-    seed = 777
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    """
-
-    def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epoch, entropy_weight):
+    def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epochs, entropy_weight, **kwargs):
         super(LuxPPOAgent, self).__init__()
 
         self.learning_rate = learning_rate
@@ -209,7 +180,7 @@ class LuxPPOAgent(LuxAgent):
         self.tau = tau
         self.batch_size = batch_size
         self.epsilon = epsilon
-        self.epoch = epoch
+        self.epochs = epochs
         self.entropy_weight = entropy_weight
 
         # device: cpu / gpu
@@ -331,7 +302,7 @@ class LuxPPOAgent(LuxAgent):
         actor_losses, critic_losses = [], []
 
         for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, adv in ppo_iter(
-                epoch=self.epoch,
+                epoch=self.epochs,
                 mini_batch_size=self.batch_size,
                 map_states=map_states,
                 piece_states=piece_states,

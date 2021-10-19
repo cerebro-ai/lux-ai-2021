@@ -32,11 +32,10 @@ def main():
         tags=config["wandb"]["tags"],
         config=config)
 
-    n_games = 10
+    total_turns = 10000
 
-    agent_config = config["agent"]
-    agent1 = LuxPPOAgent(**agent_config)
-    agent2 = LuxPPOAgent(**agent_config)
+    agent1 = LuxPPOAgent(**config["agent"])
+    agent2 = LuxPPOAgent(**config["agent"])
 
     agents = {
         "player_0": agent1,
@@ -55,43 +54,52 @@ def main():
         } for player in agents.keys()
     }
 
-    scores = []
-    score = 0
+    turn_step = 0
+    games_played = 0
+    model_updates = 0
 
-    for game_i in range(n_games):
-        print('game', game_i)
+    while turn_step < total_turns:
+        print('games played so far:', games_played)
 
         obs = env.reset()
-        done = env.game_state.match_over()
 
-        while not done:
-            if env.turn % 50 == 0:
-                print("turn", env.turn)
+        # gather data by playing "rollout_length" turn_steps
+        for s in range(config["agent"]["rollout_length"]):
+            if turn_step % 100 == 0:
+                print("turn step", turn_step)
+
+            # generate actions
             actions = {
                 player: agent.generate_actions(obs[player])
                 for player, agent in agents.items()
             }
+            # pass actions to env
             obs, rewards, dones, infos = env.step(actions)
 
+            # pass reward to agents
             for agent_id, agent in agents.items():
                 agent.receive_reward(rewards[agent_id], dones[agent_id])
 
+            # check if game is over
             done = env.game_state.match_over()
+            if done:
+                log_citytiles_game_end(env.game_state)
+                games_played += 1
+                obs = env.reset()
 
-        log_citytiles_game_end(env.game_state)
+                if games_played % config["wandb"]["save_replay_every_n_games"] == 0:
+                    wandb.log({
+                        f"Replay_game_{games_played}": wandb.Html(env.render())
+                    })
+
+            turn_step += 1
 
         for player, agent in agents.items():
+            model_updates += 1
+            print("Update step", model_updates)
             actor_loss, critic_loss = agent.update_model(obs[player])
             losses[player]["actor_losses"].append(actor_loss)
             losses[player]["critic_losses"].append(critic_loss)
-
-        for agent in agents.values():
-            agent.match_over_callback()
-
-        if game_i % config["wandb"]["replay_at_epochs"] == 0:
-            wandb.log({
-                f"Replay_epoch{game_i}": wandb.Html(env.render())
-            })
 
 
 if __name__ == '__main__':
