@@ -1,5 +1,7 @@
 config = {
-    "wandb":{
+    "seed": 424,
+    "wandb": {
+        "entity": "cerebro-ai",
         "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"],
@@ -8,9 +10,10 @@ config = {
     "game": {
         "width": 12,
         "height": 12,
-        "seed": 21
     },
-    "allow_carts": False,
+    "env": {
+        "allow_carts": False,
+    },
     "agent": {
         "learning_rate": 0.001,
         "gamma": 0.95,
