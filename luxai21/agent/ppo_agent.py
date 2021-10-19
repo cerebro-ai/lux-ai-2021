@@ -1,5 +1,6 @@
 from collections import deque
 from typing import List, Deque, Tuple
+import wandb
 
 import numpy as np
 import torch
@@ -331,6 +332,7 @@ class LuxPPOAgent(LuxAgent):
             )
 
             entropy = dist.entropy().mean()
+            wandb.log({'entropy': entropy})
 
             actor_loss = (
                     - torch.min(surr_loss, clipped_surr_loss).mean()
@@ -360,6 +362,11 @@ class LuxPPOAgent(LuxAgent):
 
         actor_loss = sum(actor_losses) / len(actor_losses)
         critic_loss = sum(critic_losses) / len(critic_losses)
+
+        wandb.log({
+            "actor_loss": actor_loss,
+            "critic_loss": critic_loss
+        })
 
         return actor_loss, critic_loss
 

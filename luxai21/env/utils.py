@@ -1,4 +1,5 @@
 from typing import Optional, Dict
+import wandb
 
 import numpy as np
 from luxpythonenv.game.actions import TransferAction
@@ -474,3 +475,14 @@ def get_cart_count(game_state: Dict, team: int):
         if unit.is_cart():
             count += 1
     return count
+
+
+def log_citytiles_game_end(game_state: Dict):
+    # TODO Split according to map size
+    citytiles_player_one = get_city_tile_count(game_state.cities, 0)
+    citytiles_player_two = get_city_tile_count(game_state.cities, 0)
+    wandb.log({
+        'Citytiles_end_player_one': citytiles_player_one,
+        'Citytiles_end_player_two': citytiles_player_two,
+        'Citytiles_end_mean': (citytiles_player_one + citytiles_player_two)/2,
+    })

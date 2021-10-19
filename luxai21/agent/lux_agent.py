@@ -26,7 +26,7 @@ class LuxAgent:
         raise NotImplementedError('receive_reward not implemented')
 
     def match_over_callback(self):
-        raise NotImplementedError('match_over_callback not implemented')
+        pass
 
 
 def model_forward(obs: dict):

@@ -1,11 +1,23 @@
 config = {
+    "wandb":{
+        "project": "cerebro-ai",
+        "notes": "First run with GNNs",
+        "tags": ["GNNs", "Reward_func1"]
+    },
     "game": {
         "width": 12,
         "height": 12,
         "seed": 21
     },
+    "allow_carts": False,
     "agent": {
-        "allow_carts": False
+        "learning_rate": 0.001,
+        "gamma": 0.95,
+        "tau": 0.8,
+        "batch_size": 80,  # two days
+        "epsilon": 0.2,
+        "epoch": 4,
+        "entropy_weight": 0.005
     },
     "reward": {
         "BUILD_CITY_TILE": 0.01,  # reward for every new build city, will be negative if a city_tile vanishes

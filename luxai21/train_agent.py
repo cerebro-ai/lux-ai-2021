@@ -2,12 +2,13 @@ import random
 
 import numpy as np
 import torch
+import wandb
 
 from luxai21.agent.lux_agent import LuxAgent
 from luxai21.agent.ppo_agent import LuxPPOAgent
 from luxai21.env import example_config
 from luxai21.env.lux_env import LuxEnv
-from luxai21.env.utils import get_city_tile_count
+from luxai21.env.utils import get_city_tile_count, log_citytiles_game_end
 
 if torch.backends.cudnn.enabled:
     torch.backends.cudnn.benchmark = False
@@ -20,20 +21,16 @@ if torch.backends.cudnn.enabled:
 
 
 def main():
+    config = example_config.config
+    wandb.init(
+        project=config["wandb"]["project"],
+        notes=config["wandb"]["notes"],
+        tags=config["wandb"]["tags"],
+        config=config)
+
     n_games = 10
 
-    config = example_config.config
-
-    agent_config = {
-        "learning_rate": 0.001,
-        "gamma": 0.95,
-        "tau": 0.8,
-        "batch_size": 80, # two days
-        "epsilon": 0.2,
-        "epoch": 4,
-        "entropy_weight": 0.005
-    }
-
+    agent_config = config["agent"]
     agent1 = LuxPPOAgent(**agent_config)
     agent2 = LuxPPOAgent(**agent_config)
 
@@ -77,8 +74,7 @@ def main():
 
             done = env.game_state.match_over()
 
-        print(f"Player0 score: {get_city_tile_count(env.game_state.cities, 0)}")
-        print(f"Player1 score: {get_city_tile_count(env.game_state.cities, 1)}")
+        log_citytiles_game_end(env.game_state)
 
         for player, agent in agents.items():
             actor_loss, critic_loss = agent.update_model(obs[player])
