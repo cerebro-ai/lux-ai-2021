@@ -28,7 +28,7 @@ def main():
         "learning_rate": 0.001,
         "gamma": 0.95,
         "tau": 0.8,
-        "batch_size": 80,
+        "batch_size": 80, # two days
         "epsilon": 0.2,
         "epoch": 4,
         "entropy_weight": 0.005
@@ -62,6 +62,7 @@ def main():
 
         obs = env.reset()
         done = env.game_state.match_over()
+
 
         while not done:
             print("turn", env.turn)
