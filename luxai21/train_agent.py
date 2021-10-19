@@ -30,7 +30,7 @@ def main():
         "tau": 0.8,
         "batch_size": 80,
         "epsilon": 0.2,
-        "epoch": 16,
+        "epoch": 4,
         "entropy_weight": 0.005
     }
 
@@ -76,8 +76,8 @@ def main():
 
             done = env.game_state.match_over()
 
-        print(f"Player0 score: {get_city_tile_count(env.game_state, 0)}")
-        print(f"Player1 score: {get_city_tile_count(env.game_state, 1)}")
+        print(f"Player0 score: {get_city_tile_count(env.game_state.cities, 0)}")
+        print(f"Player1 score: {get_city_tile_count(env.game_state.cities, 1)}")
 
         for player, agent in agents.items():
             actor_loss, critic_loss = agent.update_model(obs[player])
@@ -89,5 +89,4 @@ def main():
 
 
 if __name__ == '__main__':
-    with torch.autograd.detect_anomaly():
-        main()
+    main()

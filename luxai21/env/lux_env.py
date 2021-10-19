@@ -6,7 +6,7 @@ import copy
 import json
 from functools import partial
 from pathlib import Path
-from typing import List, Mapping, Tuple
+from typing import List, Mapping, Tuple, Any
 
 import wandb
 from gym.spaces import Discrete, Dict, Box
@@ -59,7 +59,8 @@ class LuxEnv(ParallelEnv):
         self.game_state = Game(lux_game_config)
         # rendering
         self.game_state.start_replay_logging(stateful=True)
-        self.last_game_state: Optional[Game] = None  # to derive rewards per turn
+        self.last_game_state: Optional[Any] = None  # to derive rewards per turn
+        self.last_game_cities: Optional[Dict] = None
 
         self.agent_config = {
             "allow_carts": False
@@ -76,8 +77,8 @@ class LuxEnv(ParallelEnv):
 
         self.action_map = [
             partial(MoveAction, direction=Constants.DIRECTIONS.CENTER),  # This is the do-nothing action
-            partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),
-            partial(MoveAction, direction=Constants.DIRECTIONS.WEST),
+            partial(MoveAction, direction=Constants.DIRECTIONS.NORTH),  # 1
+            partial(MoveAction, direction=Constants.DIRECTIONS.WEST),  # 2
             partial(MoveAction, direction=Constants.DIRECTIONS.SOUTH),
             partial(MoveAction, direction=Constants.DIRECTIONS.EAST),
             partial(smart_transfer_to_nearby, target_type_restriction=Constants.UNIT_TYPES.WORKER),
@@ -87,7 +88,7 @@ class LuxEnv(ParallelEnv):
             None,  # City do nothing
             SpawnWorkerAction,
             SpawnCartAction,
-            ResearchAction
+            ResearchAction  # 12
         ]
 
         self._cumulative_rewards = dict()
@@ -195,7 +196,8 @@ class LuxEnv(ParallelEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.last_game_state = copy.deepcopy(self.game_state)
+        self.last_game_state = copy.deepcopy(self.game_state.state)
+        self.last_game_cities = copy.deepcopy(self.game_state.cities)
 
         obs = self.generate_obs()
 
@@ -226,7 +228,8 @@ class LuxEnv(ParallelEnv):
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
         rewards = self.compute_rewards(self.reward_config)
 
-        self.last_game_state = copy.deepcopy(self.game_state)
+        self.last_game_state = copy.deepcopy(self.game_state.state)
+        self.last_game_cities = copy.deepcopy(self.game_state.cities)
 
         observations = self.generate_obs()
 
@@ -333,37 +336,38 @@ class LuxEnv(ParallelEnv):
         for i, agent in enumerate(self.agents):
 
             # reward new cities
-            delta_city_tiles = get_city_tile_count(self.game_state, i) - get_city_tile_count(self.last_game_state, i)
+            delta_city_tiles = get_city_tile_count(self.game_state.cities, i) - get_city_tile_count(
+                self.last_game_cities, i)
             rewards[i] += delta_city_tiles * reward_config["BUILD_CITY_TILE"]
 
             # reward new worker
-            delta_worker = get_worker_count(self.game_state, i) - get_worker_count(self.last_game_state, i)
+            delta_worker = get_worker_count(self.game_state.state, i) - get_worker_count(self.last_game_state, i)
             rewards[i] += delta_worker * reward_config["BUILD_WORKER"]
 
             # reward new cart
-            delta_cart = get_cart_count(self.game_state, i) - get_cart_count(self.last_game_state, i)
+            delta_cart = get_cart_count(self.game_state.state, i) - get_cart_count(self.last_game_state, i)
             rewards[i] += delta_cart * reward_config["BUILD_CART"]
 
             # reward new city
-            delta_city = get_city_count(self.game_state, i) - get_city_count(self.last_game_state, i)
+            delta_city = get_city_count(self.game_state.cities, i) - get_city_count(self.last_game_cities, i)
             rewards[i] += delta_city * reward_config["START_NEW_CITY"]
 
             # research
             delta_research_points = self.game_state.state["teamStates"][i]["researchPoints"] - \
-                                    self.last_game_state.state["teamStates"][i]["researchPoints"]
+                                    self.last_game_state["teamStates"][i]["researchPoints"]
             rewards[i] = delta_research_points * reward_config["GAIN_RESEARCH_POINT"]
 
-            if not self.last_game_state.state["teamStates"][i]["researched"]["coal"]:
+            if not self.last_game_state["teamStates"][i]["researched"]["coal"]:
                 if self.game_state.state["teamStates"][i]["researched"]["coal"]:
                     rewards += reward_config["RESEARCH_COAL"]
 
-            if not self.last_game_state.state["teamStates"][i]["researched"]["uranium"]:
+            if not self.last_game_state["teamStates"][i]["researched"]["uranium"]:
                 if self.game_state.state["teamStates"][i]["researched"]["uranium"]:
                     rewards += reward_config["RESEARCH_URANIUM"]
 
             # check if game over
             if self.game_state.match_over():
-                rewards[i] += get_city_tile_count(self.game_state, i) * reward_config["CITY_AT_END"]
+                rewards[i] += get_city_tile_count(self.game_state.cities, i) * reward_config["CITY_AT_END"]
                 rewards[i] += len(self.game_state.get_teams_units(i)) * reward_config["UNIT_AT_END"]
 
                 if i == self.game_state.get_winning_team():

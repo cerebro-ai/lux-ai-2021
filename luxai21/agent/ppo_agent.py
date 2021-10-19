@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List, Deque
+from typing import List, Deque, Tuple
 
 import numpy as np
 import torch
@@ -39,9 +39,8 @@ def compute_gae(
 def ppo_iter(
         epoch: int,
         mini_batch_size: int,
-        piece_states: torch.Tensor,
-        action_masks: torch.Tensor,
-        map_states: torch.Tensor,
+        map_states: Tensor,
+        piece_states: Tensor,
         actions: torch.Tensor,
         values: torch.Tensor,
         log_probs: torch.Tensor,
@@ -49,14 +48,13 @@ def ppo_iter(
         advantages: torch.Tensor,
 ):
     """Yield mini-batches."""
-    batch_size = piece_states.size(0)
+    batch_size = map_states.size(0)
+
     for _ in range(epoch):
         for _ in range(batch_size // mini_batch_size):
             rand_ids = np.random.choice(batch_size, mini_batch_size)
-            yield piece_states[rand_ids, :], action_masks[rand_ids, :], map_states[rand_ids, :], actions[rand_ids], \
-                  values[
-                      rand_ids
-                  ], log_probs[rand_ids], returns[rand_ids], advantages[rand_ids]
+            yield map_states[rand_ids, :], piece_states[rand_ids, :], actions[rand_ids], values[rand_ids], log_probs[
+                rand_ids], returns[rand_ids], advantages[rand_ids]
 
 
 class Coach(nn.Module):
@@ -81,14 +79,60 @@ class Coach(nn.Module):
 class PieceActor(nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim):
         super(PieceActor, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.map_gnn = Coach(in_dim, hidden_dim, hidden_dim)
+        self.edge_index = get_board_edge_index(12, 12, False)
         self.model = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
+            nn.Linear(hidden_dim + 1, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, out_dim)
         )
 
-    def forward(self, x, action_mask):
-        logits = self.model(x)
+    def forward(self, map_tensor: Tensor, piece_tensor: Tensor):
+        """
+        Args:
+            map_tensor: (80, 12, 12,19)
+        map_flat -> (80, 144, 19)
+        map_emb_flat -> (80, 144, 24)
+        map_emb -> (80, 12, 12 ,24)
+        cell -> (80, 80, 24)
+
+        torch index_select
+
+        x[:, 0, 0, :] -> (80, 24)
+        x[0, 6, 3, :] -> (0, 24)
+        x[1, 4, 4, :] -> (1, 24)
+
+        torch.take
+        torch.gather
+        torch.index_select
+        taok
+
+        a = b.gather(-1, c[..., None])[..., 0]
+
+        i = [0,0,0,0,0,0,0,0,0,0,0]
+        j = [4,4,4,4,4,4,,4,4,4,4,4]
+        k = [0,1,2,3,4,..]
+        i = [1111]
+        j = []
+        """
+        batches = map_tensor.size()[0]
+        map_flat = torch.reshape(map_tensor, (batches, -1, 19))
+        map_emb_flat = self.map_gnn(map_flat, self.edge_index)
+        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.hidden_dim))
+        p_type, pos, action_mask = split_piece_tensor(piece_tensor)
+        j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1)
+        j = torch.sum(pos * j_h, 1).long()
+        # i = torch.arange(0, batches).repeat_interleave(map_emb_flat.size()[-1])
+        # k = torch.arange(0, map_emb_flat).repeat(batches)
+
+        cell_state_flat = map_emb_flat[:, j, :]
+        cell_state = cell_state_flat.squeeze(1)
+        # map_emb_numpy[:, pos[:, 0], pos[:, 1], :]
+        piece_state = torch.cat([cell_state, p_type], 1)
+        # piece_state (80, 24)
+
+        logits = self.model(piece_state)
         mask_value = torch.finfo(logits.dtype).min
         logits_masked = logits.masked_fill(~action_mask, mask_value)
         dist = Categorical(logits=logits_masked)
@@ -97,10 +141,13 @@ class PieceActor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim):
+    def __init__(self, in_dim):
         super(Critic, self).__init__()
+        self.map_emb_dim = 8
+        self.map_model = Coach(in_dim, 16, self.map_emb_dim)
+        self.edge_index = get_board_edge_index(12, 12, False)
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels=in_dim, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
+            nn.Conv2d(in_channels=8, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
             nn.ReLU(),
             nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(3, 3), stride=(1, 1)),
             nn.ReLU(),
@@ -108,11 +155,14 @@ class Critic(nn.Module):
             nn.Linear(1 * 8 * 8, 1)
         )
 
-    def forward(self, x: Tensor):
-        if len(x.size()) == 3:
-            x = torch.unsqueeze(x, 0)
-        x = torch.permute(x, (0, 3, 1, 2))
-        value = self.model(x)
+    def forward(self, map_tensor: Tensor):
+        map_flat = torch.reshape(torch.FloatTensor(map_tensor), (-1, 19))
+        map_emb_flat = self.map_model(map_flat, self.edge_index)
+        map_emb = torch.reshape(map_emb_flat, (12, 12, self.map_emb_dim))
+        if len(map_emb.size()) == 3:
+            map_emb = torch.unsqueeze(map_emb, 0)
+        map_emb = torch.permute(map_emb, (0, 3, 1, 2))
+        value = self.model(map_emb)
         return value
 
 
@@ -132,6 +182,21 @@ def extract_actions(map_strategy: Tensor, pieces: dict, model: nn.Module):
         action = model(x)
 
         actions[piece_id] = action
+
+
+def piece_to_tensor(piece: dict):
+    p_type = torch.IntTensor([piece["type"]])
+    pos = torch.IntTensor(piece["pos"])
+    action_mask = torch.IntTensor(piece["action_mask"])
+    piece_tensor = torch.cat([p_type, pos, action_mask]).unsqueeze(0)
+    return piece_tensor
+
+
+def split_piece_tensor(piece_tensor: Tensor):
+    p_type = torch.narrow(piece_tensor, 1, 0, 1)
+    pos = torch.narrow(piece_tensor, 1, 1, 2).long()
+    action_mask = torch.narrow(piece_tensor, 1, 3, 13).bool()
+    return p_type, pos, action_mask
 
 
 class LuxPPOAgent(LuxAgent):
@@ -169,28 +234,18 @@ class LuxPPOAgent(LuxAgent):
 
         # networks
         self.edge_index = get_board_edge_index(12, 12, with_meta_node=False)  # TODO get sizes dynamically
-        self.coach = Coach(19, 32, 16)
-        self.value_map = Coach(19, 32, 16)
-        self.piece_actor = PieceActor(in_dim=16 + 1, hidden_dim=24, out_dim=13).to(self.device)
+        self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13).to(self.device)
 
         # TODO implement critic on strategy map
-        self.critic = Critic(in_dim=16, hidden_dim=8, out_dim=1).to(self.device)
+        self.critic = Critic(in_dim=19).to(self.device)
 
         # optimizer
-        self.actor_optimizer = optim.Adam(
-            [
-                {"params": self.coach.parameters()},
-                {"params": self.piece_actor.parameters()}
-            ], lr=self.learning_rate)
-        self.critic_optimizer = optim.Adam([
-                {"params": self.value_map.parameters()},
-                {"params": self.critic.parameters()}
-            ], lr=self.learning_rate)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
 
         # memory for training
-        self.piece_states: List[torch.Tensor] = []
-        self.action_masks: List[torch.Tensor] = []
-        self.map_states: List[torch.Tensor] = []
+        self.map_states: List[Tensor] = []
+        self.piece_states: List[Tensor] = []
         self.actions: List[torch.Tensor] = []
         self.rewards: List[torch.Tensor] = []
         self.values: List[torch.Tensor] = []
@@ -206,14 +261,13 @@ class LuxPPOAgent(LuxAgent):
         self.is_test = False
 
     def generate_actions(self, observation: dict):
-        flattened_map = torch.reshape(torch.FloatTensor(observation["_map"]), (-1, 19))
-        coach_state = torch.reshape(self.coach(flattened_map, self.edge_index), (12, 12, -1))
-        value_state =
         actions = {}
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
                 continue
-            action = self.select_action(coach_state, piece)
+            piece_tensor = piece_to_tensor(piece)
+            _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
+            action = self.select_action(_map, piece_tensor)
             actions[piece_id] = int(action)
         self.last_returned_actions_length = len(actions.keys())
         return actions
@@ -225,27 +279,19 @@ class LuxPPOAgent(LuxAgent):
         self.masks.extend(masks)
         self.rewards.extend(rewards)
 
-    def select_action(self, strategy_state: Tensor, piece: dict):
+    def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
         """Select a action for a pre-computed strategy vector from the map and piece
 
         TODO incorporate piece history
         """
-        pos = piece["pos"]
-        cell_strategy = strategy_state[pos[0], pos[1], :]  # get the strategy of the cell where the piece is located
-        piece_type = torch.Tensor([piece["type"]])
-
-        piece_state = torch.unsqueeze(torch.cat([cell_strategy, piece_type]), 0)
-        action_mask = torch.unsqueeze(torch.BoolTensor(piece["action_mask"]), 0)
-        action, dist = self.piece_actor(piece_state, action_mask)  # TODO add action mask
-        dist: Categorical = dist
+        action, dist = self.actor(map_tensor, piece_tensor)
         selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
 
         if not self.is_test:
             # in training mode
-            value = self.critic(strategy_state)
-            self.piece_states.append(piece_state)
-            self.action_masks.append(action_mask)
-            self.map_states.append(torch.unsqueeze(strategy_state, 0))
+            value = self.critic(map_tensor)
+            self.map_states.append(map_tensor)
+            self.piece_states.append(piece_tensor)
             self.actions.append(torch.unsqueeze(selected_action, 0))
             self.values.append(value)
             self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0))
@@ -255,11 +301,8 @@ class LuxPPOAgent(LuxAgent):
     def update_model(self, last_obs):
         device = self.device
 
-        _map = torch.FloatTensor(last_obs["_map"]).to(device)
-        _map_flattened = torch.reshape(_map, (-1, 19))
-        next_map_state = torch.reshape(self.coach(_map_flattened, self.edge_index), (12, 12, -1))
-
-        next_value = self.critic(next_map_state)
+        _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
+        next_value = self.critic(_map)
 
         returns = compute_gae(next_value,
                               self.rewards,
@@ -268,9 +311,8 @@ class LuxPPOAgent(LuxAgent):
                               self.gamma,
                               self.tau)
 
-        states = torch.cat(self.piece_states)
-        action_masks = torch.cat(self.action_masks)
         map_states = torch.cat(self.map_states)
+        piece_states = torch.cat(self.piece_states)
         actions = torch.cat(self.actions)
         returns = torch.cat(returns).detach()
         values = torch.cat(self.values).detach()
@@ -279,19 +321,18 @@ class LuxPPOAgent(LuxAgent):
 
         actor_losses, critic_losses = [], []
 
-        for piece_state, action_mask, map_state, action, old_value, old_log_prob, return_, adv in ppo_iter(
+        for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, adv in ppo_iter(
                 epoch=self.epoch,
                 mini_batch_size=self.batch_size,
-                piece_states=states,
-                action_masks=action_masks,
                 map_states=map_states,
+                piece_states=piece_states,
                 actions=actions,
                 values=values,
                 log_probs=log_probs,
                 returns=returns,
                 advantages=advantages
         ):
-            _, dist = self.piece_actor(piece_state, action_mask)
+            _, dist = self.actor(map_tensor, piece_tensor)
             log_prob = dist.log_prob(action)
             ratio = (log_prob - old_log_prob).exp()
 
@@ -309,7 +350,7 @@ class LuxPPOAgent(LuxAgent):
             )
 
             # critic loss
-            value = self.critic(map_state)
+            value = self.critic(map_tensor)
             critic_loss = (return_ - value).pow(2).mean()
 
             # train critic
