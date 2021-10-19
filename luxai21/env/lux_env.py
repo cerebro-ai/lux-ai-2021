@@ -29,7 +29,7 @@ class LuxEnv(ParallelEnv):
         Args:
             config: Dict where the two keys are respected:
                 game: Config that gets passed to the game. Possible keys: width, height, seed
-                agent: Config for the agent, e.g if agents should be able to build carts
+                env: Config for the agent, e.g if agents should be able to build carts
                 reward: Config which describes the value of every reward
 
         Example:
@@ -39,7 +39,7 @@ class LuxEnv(ParallelEnv):
                     width: 12
                     seed: 128343
                 }
-                agent: {
+                env: {
                     "allow_carts": False
                 }
                 reward: {
@@ -51,7 +51,7 @@ class LuxEnv(ParallelEnv):
         super().__init__()  # does nothing
 
         self.game_config = config["game"]
-        self.agent_config = config["agent"]
+        self.env_config = config["env"]
         self.reward_config = config["reward"]
 
         lux_game_config = LuxMatchConfigs_Default.copy()
@@ -62,10 +62,10 @@ class LuxEnv(ParallelEnv):
         self.last_game_state: Optional[Any] = None  # to derive rewards per turn
         self.last_game_cities: Optional[Dict] = None
 
-        self.agent_config = {
+        self.env_config = {
             "allow_carts": False
         }
-        self.agent_config.update(self.agent_config)
+        self.env_config.update(self.env_config)
 
         self.agents = ["player_0", "player_1"]
         self.possible_agents = self.agents
@@ -387,8 +387,8 @@ class LuxEnv(ParallelEnv):
         game_state_player0 = generate_game_state_matrix(self.game_state, team=0)
         game_state_player1 = generate_game_state_matrix(self.game_state, team=1)
 
-        unit_states_player0 = generate_unit_states(self.game_state, team=0, config=self.agent_config)
-        unit_states_player1 = generate_unit_states(self.game_state, team=1, config=self.agent_config)
+        unit_states_player0 = generate_unit_states(self.game_state, team=0, config=self.env_config)
+        unit_states_player1 = generate_unit_states(self.game_state, team=1, config=self.env_config)
 
         return {
             self.agents[0]: {
