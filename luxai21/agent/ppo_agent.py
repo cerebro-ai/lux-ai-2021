@@ -221,8 +221,11 @@ class LuxPPOAgent(LuxAgent):
         self.strategy_dim = 32
         self.piece_dim = 1
 
+        self.map_size = None
+
         # networks
-        self.edge_index = get_board_edge_index(12, 12, with_meta_node=False)  # TODO get sizes dynamically
+        self.edge_index = None
+        self.edge_index_cache = {}  # this will cache the edge_indices
         self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13).to(self.device)
 
         # TODO implement critic on strategy map
@@ -249,7 +252,24 @@ class LuxPPOAgent(LuxAgent):
         # mode: train / test
         self.is_test = False
 
+    def update_edge_index(self, _map: np.ndarray):
+        """
+        Between games the map can change in size, but since this does not happen to often,
+        we check that here and update only if we need to. Already called edge_indices are stored in the cache
+        """
+        map_size = _map.shape[1]
+        if self.map_size is None or map_size != self.map_size:
+            self.map_size = map_size
+            if map_size in self.edge_index_cache:
+                self.edge_index = self.edge_index_cache[map_size]
+            else:
+                self.edge_index = get_board_edge_index(map_size, map_size, with_meta_node=False)
+                self.edge_index_cache[map_size] = self.edge_index
+
     def generate_actions(self, observation: dict):
+        # check if map is still of the same size
+        self.update_edge_index(observation["_map"])
+
         actions = {}
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
