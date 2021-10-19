@@ -84,6 +84,11 @@ def main():
         for agent in agents.values():
             agent.match_over_callback()
 
+        if game_i % config["wandb"]["replay_at_epochs"] == 0:
+            wandb.log({
+                f"Replay_epoch{game_i}": wandb.Html(env.render())
+            })
+
 
 if __name__ == '__main__':
     main()

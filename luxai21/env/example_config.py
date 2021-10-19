@@ -2,7 +2,8 @@ config = {
     "wandb":{
         "project": "luxai21",
         "notes": "First run with GNNs",
-        "tags": ["GNNs", "Reward_func1"]
+        "tags": ["GNNs", "Reward_func1"],
+        "replay_at_epochs": 1
     },
     "game": {
         "width": 12,
@@ -37,6 +38,5 @@ config = {
 
         "ZERO_SUM": True
         # if true it will center the agent rewards around zero, and one agent will get a negative reward
-    }
-
+    },
 }
