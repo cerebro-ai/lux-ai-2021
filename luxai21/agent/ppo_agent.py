@@ -96,37 +96,17 @@ class PieceActor(nn.Module):
         map_emb_flat -> (80, 144, 24)
         map_emb -> (80, 12, 12 ,24)
         cell -> (80, 80, 24)
-
-        torch index_select
-
-        x[:, 0, 0, :] -> (80, 24)
-        x[0, 6, 3, :] -> (0, 24)
-        x[1, 4, 4, :] -> (1, 24)
-
-        torch.take
-        torch.gather
-        torch.index_select
-        taok
-
-        a = b.gather(-1, c[..., None])[..., 0]
-
-        i = [0,0,0,0,0,0,0,0,0,0,0]
-        j = [4,4,4,4,4,4,,4,4,4,4,4]
-        k = [0,1,2,3,4,..]
-        i = [1111]
-        j = []
         """
         batches = map_tensor.size()[0]
         map_flat = torch.reshape(map_tensor, (batches, -1, 19))
         map_emb_flat = self.map_gnn(map_flat, self.edge_index)
-
+        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.hidden_dim))
         p_type, pos, action_mask = split_piece_tensor(piece_tensor)
 
-        j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1)
-        j = torch.sum(pos * j_h, 1).long()
-        indices = j[..., None, None].expand(-1, 1, map_emb_flat.size(2))
-        cell_state = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
+        cell_state = torch.cat([map_emb[i, pos[i, 0], pos[i, 1], :].unsqueeze(0) for i in range(80)])
+        # map_emb_numpy[:, pos[:, 0], pos[:, 1], :]
 
+        # cell_state should be (80, 24)
         piece_state = torch.cat([cell_state, p_type], 1)
 
         logits = self.model(piece_state)

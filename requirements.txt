@@ -8,4 +8,4 @@ tensorboard
 git+ssh://git@github.com:cerebro-ai/lux-python-env.git
 wandb
 pettingzoo
-torch_geometric
+torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-1.9.0+cpu.html
