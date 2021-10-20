@@ -363,6 +363,10 @@ class LuxPPOAgent(LuxAgent):
         return actor_loss, critic_loss
 
     def load(self, path):
+        self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13)
+        # TODO implement critic on strategy map
+        self.critic = Critic(in_dim=19)
+
         checkpoint = torch.load(path)
         self.learning_rate = checkpoint["learning_rate"]
         self.gamma = checkpoint["gamma"]
@@ -377,6 +381,9 @@ class LuxPPOAgent(LuxAgent):
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
 
+        self.critic.to(device)
+        self.actor.to(device)
+ 
     def save(self, target="models", name=None):
         if name is not None:
             target = os.path.join(target, f'{name}_complete_PPOmodel_checkpoint')
@@ -390,8 +397,8 @@ class LuxPPOAgent(LuxAgent):
             "epsilon": self.epsilon,
             "epoch": self.epoch,
             "entropy_weight": self.entropy_weight,
-            "critic_state_dict": self.critic.state_dict(),
-            "actor_state_dict": self.actor.state_dict(),
+            "critic_state_dict": self.critic.to('cpu').state_dict(),
+            "actor_state_dict": self.actor.to('cpu').state_dict(),
             "critic_optimizer_state_dict": self.critic_optimizer.state_dict()
             "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
         },
