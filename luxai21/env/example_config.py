@@ -12,7 +12,8 @@ config = {
     },
     "training": {
         "max_games": 10,
-        "games_until_update": 2
+        "games_until_update": 2,
+        "max_training_time": 30600
     },
     "allow_carts": False,
     "agent": {

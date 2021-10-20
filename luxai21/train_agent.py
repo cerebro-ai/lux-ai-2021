@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 import wandb
+import time
 
 from luxai21.agent.lux_agent import LuxAgent
 from luxai21.agent.ppo_agent import LuxPPOAgent
@@ -21,6 +22,7 @@ if torch.backends.cudnn.enabled:
 
 
 def main():
+    start_time = time.time() # since kaggle notebooks only run for 9 hours
     config = example_config.config
     wandb.init(
         project=config["wandb"]["project"],
@@ -91,6 +93,10 @@ def main():
             wandb.log({
                 f"Replay_step{total_games}": wandb.Html(env.render())
             })
+
+        if time.time() - start_time > config["training"]["max_training_time"]:
+            # TODO add saving model here
+            break
 
 
 if __name__ == '__main__':
