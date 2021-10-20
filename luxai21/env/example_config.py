@@ -5,7 +5,7 @@ config = {
         "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"],
-        "replay_every_x_games": 5
+        "replay_every_x_updates": 5
     },
     "game": {
         "width": 12,

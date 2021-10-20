@@ -61,14 +61,14 @@ def train(config=None):
 
     total_games = 0
     best_citytiles_end = 10
-    best_model = None
+    count_updates = 0
 
     while total_games < config["training"]["max_games"]:
         games = 0
         citytiles_end = []
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
-        while len(agent1.rewards) > config["training"]["max_replay_buffer_size"]:
+        while len(agent1.rewards) < config["training"]["max_replay_buffer_size"]:
             obs = env.reset()
             done = env.game_state.match_over()
 
@@ -83,7 +83,8 @@ def train(config=None):
                 obs, rewards, dones, infos = env.step(actions)
 
                 # pass reward to agent
-                agent0.receive_reward(rewards["player_0"], dones["player_0"])
+                for agent_id, agent in agents.items():
+                    agent.receive_reward(rewards[agent_id], dones[agent_id])
 
                 # check if game is over
                 done = env.game_state.match_over()
@@ -102,14 +103,16 @@ def train(config=None):
             agent1.save()
 
         # Update models and append losses
-        actor_loss, critic_loss = agent0.update_model(obs["player_0"])
-        losses["player_0"]["actor_losses"].append(actor_loss)
-        losses["player_0"]["critic_losses"].append(critic_loss)
+        count_updates += 1
+        for player, agent in agents.items():
+            actor_loss, critic_loss = agent.update_model(obs[player])
+            losses[player]["actor_losses"].append(actor_loss)
+            losses[player]["critic_losses"].append(critic_loss)
 
         for agent in agents.values():
             agent.match_over_callback()
 
-        if total_games % config["wandb"]["replay_every_x_games"] == 0 and total_games != 0:
+        if count_updates % config["wandb"]["replay_every_x_updates"] == 0 and count_updates != 0:
             wandb.log({
                 f"Replay_step{total_games}": wandb.Html(env.render())
             })
