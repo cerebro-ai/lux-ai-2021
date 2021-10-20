@@ -1,5 +1,7 @@
 config = {
-    "wandb":{
+    "seed": 424,
+    "wandb": {
+        "entity": "cerebro-ai",
         "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"],
@@ -8,14 +10,16 @@ config = {
     "game": {
         "width": 12,
         "height": 12,
-        "seed": 21
+    },
+    "env": {
+        "allow_carts": False,
     },
     "training": {
         "max_games": 10,
-        "games_until_update": 2,
-        "max_training_time": 30600
+        "max_replay_buffer_size": 20000,
+        "max_training_time": 30600,
+        "save_checkpoint_every_x_games": 5
     },
-    "allow_carts": False,
     "agent": {
         "learning_rate": 0.001,
         "gamma": 0.95,
