@@ -8,7 +8,7 @@ from luxai21.agent.lux_agent import LuxAgent
 from luxai21.agent.ppo_agent import LuxPPOAgent
 from luxai21.env import example_config
 from luxai21.env.lux_env import LuxEnv
-from luxai21.env.utils import get_city_tile_count, log_citytiles_game_end
+from luxai21.env.utils import get_city_tile_count, log_and_get_citytiles_game_end
 
 if torch.backends.cudnn.enabled:
     torch.backends.cudnn.benchmark = False
@@ -53,28 +53,31 @@ def main():
 
     scores = []
     score = 0
-
-    for game_i in range(n_games):
-        print('game', game_i)
-
-        obs = env.reset()
-        done = env.game_state.match_over()
-
-
-        while not done:
-            print("turn", env.turn)
-            actions = {
-                player: agent.generate_actions(obs[player])
-                for player, agent in agents.items()
-            }
-            obs, rewards, dones, infos = env.step(actions)
-
-            for agent_id, agent in agents.items():
-                agent.receive_reward(rewards[agent_id], dones[agent_id])
-
+    total_games = 0
+    while total_games < config["training"]["max_games"]:
+        games = 0
+        citytiles_end = []
+        while games < config["training"]["games_until_update"]:
+            obs = env.reset()
             done = env.game_state.match_over()
 
-        log_citytiles_game_end(env.game_state)
+            while not done:
+                actions = {
+                    player: agent.generate_actions(obs[player])
+                    for player, agent in agents.items()
+                }
+                obs, rewards, dones, infos = env.step(actions)
+
+                for agent_id, agent in agents.items():
+                    agent.receive_reward(rewards[agent_id], dones[agent_id])
+
+                done = env.game_state.match_over()
+            citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
+            games += 1
+        wandb.log({
+            "citytiles_end_mean_episode": sum(citytiles_end)/len(citytiles_end)
+        })
+        total_games += games
 
         for player, agent in agents.items():
             actor_loss, critic_loss = agent.update_model(obs[player])
@@ -84,9 +87,9 @@ def main():
         for agent in agents.values():
             agent.match_over_callback()
 
-        if game_i % config["wandb"]["replay_at_epochs"] == 0:
+        if total_games % config["wandb"]["replay_every_x_games"] == 0 and total_games != 0:
             wandb.log({
-                f"Replay_epoch{game_i}": wandb.Html(env.render())
+                f"Replay_step{total_games}": wandb.Html(env.render())
             })
 
 

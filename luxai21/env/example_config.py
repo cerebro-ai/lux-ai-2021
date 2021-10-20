@@ -3,12 +3,16 @@ config = {
         "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"],
-        "replay_at_epochs": 1
+        "replay_every_x_games": 5
     },
     "game": {
         "width": 12,
         "height": 12,
         "seed": 21
+    },
+    "training": {
+        "max_games": 10,
+        "games_until_update": 2
     },
     "allow_carts": False,
     "agent": {
