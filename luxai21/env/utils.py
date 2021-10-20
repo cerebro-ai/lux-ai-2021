@@ -412,10 +412,14 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
         # BUILD CITY & PILLAGE
         if unit.is_worker():
             if unit.can_build(game_state.map):
-                action_mask[7] = 1
 
-            if game_state.map.get_cell_by_pos(unit.pos).road > 0:
-                action_mask[8] = 1
+                # check that unit is not on a city tile
+                cell = game_state.map.get_cell_by_pos(unit.pos)
+                if cell.city_tile is None:
+                    action_mask[7] = 1
+
+                    if game_state.map.get_cell_by_pos(unit.pos).road > 0:
+                        action_mask[8] = 1
 
     elif city_tile is not None:
         # do nothing
