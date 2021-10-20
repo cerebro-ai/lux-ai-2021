@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import wandb
 import time
+import copy
 
 from luxai21.agent.ppo_agent import LuxPPOAgent
 from luxai21.env import example_config
@@ -65,7 +66,7 @@ def main():
         citytiles_end = []
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
-        while max(len(agent1.rewards), len(agent2.rewards))  > config["training"]["max_replay_buffer_size"]:
+        while len(agent1.rewards) > config["training"]["max_replay_buffer_size"]:
             obs = env.reset()
             done = env.game_state.match_over()
 
@@ -79,9 +80,8 @@ def main():
                 # pass actions to env
                 obs, rewards, dones, infos = env.step(actions)
 
-                # pass reward to agents
-                for agent_id, agent in agents.items():
-                    agent.receive_reward(rewards[agent_id], dones[agent_id])
+                # pass reward to agent
+                agent0.receive_reward(rewards["player_0"], dones["player_0"])
 
                 # check if game is over
                 done = env.game_state.match_over()
@@ -100,10 +100,9 @@ def main():
             agent1.save()
 
         # Update models and append losses
-        for player, agent in agents.items():
-            actor_loss, critic_loss = agent.update_model(obs[player])
-            losses[player]["actor_losses"].append(actor_loss)
-            losses[player]["critic_losses"].append(critic_loss)
+        actor_loss, critic_loss = agent0.update_model(obs["player_0"])
+        losses["player_0"]["actor_losses"].append(actor_loss)
+        losses["player_0"]["critic_losses"].append(critic_loss)
 
         for agent in agents.values():
             agent.match_over_callback()
@@ -115,6 +114,9 @@ def main():
 
         if time.time() - start_time > config["training"]["max_training_time"]:
             agent1.save()
+
+        agent2.critic = copy.deepcopy(agent1.critic)
+        agent2.actor = copy.deepcopy(agent1.actor)
 
 if __name__ == '__main__':
     main()
