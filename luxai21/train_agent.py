@@ -6,6 +6,7 @@ import wandb
 import time
 import copy
 
+from tqdm import tqdm
 from loguru import logger as log
 
 from luxai21.agent.ppo_agent import LuxPPOAgent
@@ -73,8 +74,10 @@ def main():
         while len(agent1.rewards) * 2 < config["training"]["max_replay_buffer_size"]:
             obs = env.reset()
             done = env.game_state.match_over()
+            log.debug(f"Start game {games}")
 
             # GAME TURNS
+            turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
             while not done:
                 # 1. generate actions
                 actions = {
@@ -91,7 +94,9 @@ def main():
 
                 # 4. check if game is over
                 done = env.game_state.match_over()
+                turn_bar.update(1)
 
+            turn_bar.close()
             # GAME ENDS
             citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
             games += 1
