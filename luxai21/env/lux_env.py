@@ -349,6 +349,8 @@ class LuxEnv(ParallelEnv):
 
         for i, agent in enumerate(self.agents):
 
+            rewards[i] += reward_config["TURN"]
+
             # reward new cities
             delta_city_tiles = get_city_tile_count(self.game_state.cities, i) - get_city_tile_count(
                 self.last_game_cities, i)
