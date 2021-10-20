@@ -22,9 +22,11 @@ def set_seed(seed: int):
     random.seed(seed)
 
 
-def main():
+def train(config=None):
     start_time = time.time() # since kaggle notebooks only run for 9 hours
-    config = example_config.config
+
+    if config is None:
+        config = example_config.config
 
     set_seed(config["seed"])
 
@@ -119,4 +121,4 @@ def main():
         agent2.actor = copy.deepcopy(agent1.actor)
 
 if __name__ == '__main__':
-    main()
+    train()
