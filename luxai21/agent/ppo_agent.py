@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections import deque
-from typing import List, Deque, Tuple
+from typing import List, Deque, Tuple, Type
 import wandb
 import os
 
@@ -362,6 +364,16 @@ class LuxPPOAgent(LuxAgent):
 
         return actor_loss, critic_loss
 
+    def extend_replay_data(self, agent: LuxPPOAgent):
+        """Copy the replay data from the given agent
+        """
+        self.piece_states.extend(agent.piece_states)
+        self.map_states.extend(agent.map_states)
+        self.actions.extend(agent.actions)
+        self.rewards.extend(agent.rewards)
+        self.values.extend(agent.masks)
+        self.log_probs.extend(agent.log_probs)
+
     def load(self, path):
         self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13)
         # TODO implement critic on strategy map
@@ -381,9 +393,9 @@ class LuxPPOAgent(LuxAgent):
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
 
-        self.critic.to(device)
-        self.actor.to(device)
- 
+        self.critic.to(self.device)
+        self.actor.to(self.device)
+
     def save(self, target="models", name=None):
         if name is not None:
             target = os.path.join(target, f'{name}_complete_PPOmodel_checkpoint')
@@ -399,7 +411,7 @@ class LuxPPOAgent(LuxAgent):
             "entropy_weight": self.entropy_weight,
             "critic_state_dict": self.critic.to('cpu').state_dict(),
             "actor_state_dict": self.actor.to('cpu').state_dict(),
-            "critic_optimizer_state_dict": self.critic_optimizer.state_dict()
+            "critic_optimizer_state_dict": self.critic_optimizer.state_dict(),
             "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
         },
             target)

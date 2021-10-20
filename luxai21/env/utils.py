@@ -477,7 +477,7 @@ def get_cart_count(game_state: Dict, team: int):
     return count
 
 
-def log_and_get_citytiles_game_end(game_state: Dict):
+def log_and_get_citytiles_game_end(game_state: Game):
     # TODO Split according to map size
     citytiles_player_one = get_city_tile_count(game_state.cities, 0)
     citytiles_player_two = get_city_tile_count(game_state.cities, 1)

@@ -21,12 +21,12 @@ config = {
         "save_checkpoint_every_x_games": 5
     },
     "agent": {
-        "learning_rate": 0.001,
-        "gamma": 0.95,
+        "learning_rate": 0.005,
+        "gamma": 0.995,
         "tau": 0.8,
         "batch_size": 80,  # two days
         "epsilon": 0.2,
-        "epoch": 4,
+        "epochs": 4,
         "entropy_weight": 0.005
     },
     "reward": {
