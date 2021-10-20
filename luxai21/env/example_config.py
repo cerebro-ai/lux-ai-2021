@@ -18,14 +18,14 @@ config = {
         "max_games": 100000,
         "max_replay_buffer_size": 4096,
         "max_training_time": 30600,
-        "save_checkpoint_every_x_games": 40
+        "save_checkpoint_every_x_updates": 10
     },
     "agent": {
         "learning_rate": 0.001,
-        "gamma": 0.98,
+        "gamma": 0.985,
         "tau": 0.8,
         "batch_size": 512,
-        "epsilon": 0.3,
+        "epsilon": 0.1,
         "epochs": 2,
         "entropy_weight": 0.005
     },

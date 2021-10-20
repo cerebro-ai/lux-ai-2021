@@ -60,6 +60,7 @@ def main():
         } for player in agents.keys()
     }
 
+    update_step = 0
     total_games = 0
     best_citytiles_end = 10
     best_model = None
@@ -86,7 +87,14 @@ def main():
                 }
 
                 # 2. pass actions to env
-                obs, rewards, dones, infos = env.step(actions)
+                try:
+                    obs, rewards, dones, infos = env.step(actions)
+                except AttributeError as e:
+                    # Game env errored
+                    log.error(e)
+                    agent1.receive_reward(0, 1)
+                    agent2.receive_reward(0, 1)
+                    break
 
                 # 3. pass reward to agents
                 agent1.receive_reward(rewards["player_0"], dones["player_0"])
@@ -114,8 +122,10 @@ def main():
         if mean_citytiles_end > best_citytiles_end:
             agent1.save(name='most_citytiles_end')
 
-        if total_games % config["training"]["save_checkpoint_every_x_games"] == 0 and total_games != 0:
+        if update_step % config["training"]["save_checkpoint_every_x_updates"] == 0 and update_step != 0:
             agent1.save()
+
+        update_step += 1
 
         # Update models and append losses
         # transfer replay data from agent1 to agent2
