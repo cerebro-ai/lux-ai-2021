@@ -3,11 +3,12 @@ import random
 import numpy as np
 import torch
 import wandb
+import time
 
 from luxai21.agent.ppo_agent import LuxPPOAgent
 from luxai21.env import example_config
 from luxai21.env.lux_env import LuxEnv
-from luxai21.env.utils import log_citytiles_game_end
+from luxai21.env.utils import get_city_tile_count, log_and_get_citytiles_game_end
 
 
 def set_seed(seed: int):
@@ -21,6 +22,7 @@ def set_seed(seed: int):
 
 
 def main():
+    start_time = time.time() # since kaggle notebooks only run for 9 hours
     config = example_config.config
 
     set_seed(config["seed"])
@@ -54,53 +56,57 @@ def main():
         } for player in agents.keys()
     }
 
-    turn_step = 0
-    games_played = 0
-    model_updates = 0
+    total_games = 0
+    while total_games < config["training"]["max_games"]:
+        games = 0
+        citytiles_end = []
 
-    while turn_step < total_turns:
-        print('games played so far:', games_played)
-
-        obs = env.reset()
-
-        # gather data by playing "rollout_length" turn_steps
-        for s in range(config["agent"]["rollout_length"]):
-            if turn_step % 100 == 0:
-                print("turn step", turn_step)
-
-            # generate actions
-            actions = {
-                player: agent.generate_actions(obs[player])
-                for player, agent in agents.items()
-            }
-            # pass actions to env
-            obs, rewards, dones, infos = env.step(actions)
-
-            # pass reward to agents
-            for agent_id, agent in agents.items():
-                agent.receive_reward(rewards[agent_id], dones[agent_id])
-
-            # check if game is over
+        # gather data by playing "games_until_update" games
+        while games < config["training"]["games_until_update"]:
+            obs = env.reset()
             done = env.game_state.match_over()
-            if done:
-                log_citytiles_game_end(env.game_state)
-                games_played += 1
-                obs = env.reset()
 
-                if games_played % config["wandb"]["save_replay_every_n_games"] == 0:
-                    wandb.log({
-                        f"Replay_game_{games_played}": wandb.Html(env.render())
-                    })
+            while not done:
+                # generate actions
+                actions = {
+                    player: agent.generate_actions(obs[player])
+                    for player, agent in agents.items()
+                }
 
-            turn_step += 1
+                # pass actions to env
+                obs, rewards, dones, infos = env.step(actions)
 
+                # pass reward to agents
+                for agent_id, agent in agents.items():
+                    agent.receive_reward(rewards[agent_id], dones[agent_id])
+
+                # check if game is over
+                done = env.game_state.match_over()
+
+            citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
+            games += 1
+
+        wandb.log({
+            "citytiles_end_mean_episode": sum(citytiles_end)/len(citytiles_end)
+        })
+        total_games += games
+
+        # Update models and append losses
         for player, agent in agents.items():
-            model_updates += 1
-            print("Update step", model_updates)
             actor_loss, critic_loss = agent.update_model(obs[player])
             losses[player]["actor_losses"].append(actor_loss)
             losses[player]["critic_losses"].append(critic_loss)
 
+        for agent in agents.values():
+            agent.match_over_callback()
+
+        if total_games % config["wandb"]["replay_every_x_games"] == 0 and total_games != 0:
+            wandb.log({
+                f"Replay_step{total_games}": wandb.Html(env.render())
+            })
+
+        if time.time() - start_time > config["training"]["max_training_time"]:
+            LuxPPOAgent.save()
 
 if __name__ == '__main__':
     main()

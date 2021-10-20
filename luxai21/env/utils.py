@@ -477,12 +477,14 @@ def get_cart_count(game_state: Dict, team: int):
     return count
 
 
-def log_citytiles_game_end(game_state: Dict):
+def log_and_get_citytiles_game_end(game_state: Dict):
     # TODO Split according to map size
     citytiles_player_one = get_city_tile_count(game_state.cities, 0)
     citytiles_player_two = get_city_tile_count(game_state.cities, 1)
+    mean = (citytiles_player_one + citytiles_player_two)/2
     wandb.log({
         'Citytiles_end_player_one': citytiles_player_one,
         'Citytiles_end_player_two': citytiles_player_two,
-        'Citytiles_end_mean': (citytiles_player_one + citytiles_player_two)/2,
+        'Citytiles_end_mean': mean,
     })
+    return mean

@@ -5,7 +5,7 @@ config = {
         "project": "luxai21",
         "notes": "First run with GNNs",
         "tags": ["GNNs", "Reward_func1"],
-        "replay_at_epochs": 1
+        "replay_every_x_games": 5
     },
     "game": {
         "width": 12,
@@ -13,6 +13,11 @@ config = {
     },
     "env": {
         "allow_carts": False,
+    },
+    "training": {
+        "max_games": 10,
+        "games_until_update": 2,
+        "max_training_time": 30600
     },
     "agent": {
         "learning_rate": 0.001,
