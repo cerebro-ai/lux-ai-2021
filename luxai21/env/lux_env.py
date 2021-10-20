@@ -57,6 +57,9 @@ class LuxEnv(ParallelEnv):
 
         lux_game_config = LuxMatchConfigs_Default.copy()
         lux_game_config.update(self.game_config)
+        if "seed" not in lux_game_config or lux_game_config["seed"] is None:
+            lux_game_config["seed"] = random.randint(0, 50000)
+
         self.game_state = Game(lux_game_config)
         # rendering
         self.game_state.start_replay_logging(stateful=True)
