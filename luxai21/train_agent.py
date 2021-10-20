@@ -64,8 +64,8 @@ def main():
         games = 0
         citytiles_end = []
 
-        # gather data by playing "games_until_update" games
-        while games < config["training"]["games_until_update"]:
+        # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
+        while max(len(agent1.rewards), len(agent2.rewards))  > config["training"]["max_replay_buffer_size"]:
             obs = env.reset()
             done = env.game_state.match_over()
 
@@ -85,7 +85,6 @@ def main():
 
                 # check if game is over
                 done = env.game_state.match_over()
-
             citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
             games += 1
 
