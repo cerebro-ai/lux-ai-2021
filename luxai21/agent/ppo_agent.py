@@ -83,6 +83,7 @@ class MapGNN(nn.Module):
 class PieceActor(nn.Module):
     """
     TODO implement to use past actions (LSTM, Transformer)
+    TODO implement deeper GNN, e.g GATv2
     """
 
     def __init__(self, in_dim, gnn_hidden_dim, gnn_out_dim, mlp_hidden_dim, out_dim):

@@ -1,5 +1,5 @@
 config = {
-    "seed": 123,
+    "seed": 505,
     "wandb": {
         "entity": "cerebro-ai",
         "project": "luxai21",
