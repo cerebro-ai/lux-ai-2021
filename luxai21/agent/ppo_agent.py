@@ -370,7 +370,32 @@ class LuxPPOAgent(LuxAgent):
 
         return actor_loss, critic_loss
 
-    def load(self, model):
-        #  TODO implement load from saved state
-        #   Should also set all hyperparameters
-        pass
+    def load(self, path):
+        checkpoint = torch.load(path)
+        self.learning_rate = checkpoint["learning_rate"]
+        self.gamma = checkpoint["gamma"]
+        self.tau = checkpoint["tau"]
+        self.batch_size = checkpoint["batch_size"]
+        self.epsilon = checkpoint["epsilon"]
+        self.epoch = checkpoint["epoch"]
+        self.entropy_weight = checkpoint["entropy_weight"]
+
+        self.critic.load_state_dict(checkpoint["critic_state_dict"])
+        self.actor.load_state_dict(checkpoint["actor_state_dict"])
+        self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
+        self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
+
+    def save(self, target="models"):
+        torch.save({
+            "learning_rate": self.learning_rate,
+            "gamma": self.gamma,
+            "tau": self.tau,
+            "batch_size": self.batch_size,
+            "epsilon": self.epsilon,
+            "epoch": self.epoch,
+            "entropy_weight": self.entropy_weight,
+            "critic_state_dict": self.critic.state_dict(),
+            "actor_state_dict": self.actor.state_dict(),
+            "critic_optimizer_state_dict": self.critic_optimizer.state_dict()
+            "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
+        },os.path.join(target, 'complete_PPOmodel_checkpoint'))
