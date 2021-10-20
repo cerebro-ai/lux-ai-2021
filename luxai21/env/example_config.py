@@ -17,7 +17,8 @@ config = {
     "training": {
         "max_games": 10,
         "games_until_update": 2,
-        "max_training_time": 30600
+        "max_training_time": 30600,
+        "save_checkpoint_every_x_games": 5
     },
     "agent": {
         "learning_rate": 0.001,

@@ -57,6 +57,9 @@ def main():
     }
 
     total_games = 0
+    best_citytiles_end = 10
+    best_model = None
+
     while total_games < config["training"]["max_games"]:
         games = 0
         citytiles_end = []
@@ -86,10 +89,16 @@ def main():
             citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
             games += 1
 
-        wandb.log({
-            "citytiles_end_mean_episode": sum(citytiles_end)/len(citytiles_end)
-        })
         total_games += games
+        mean_citytiles_end = sum(citytiles_end)/len(citytiles_end)
+        wandb.log({
+            "citytiles_end_mean_episode": mean_citytiles_end
+        })
+        if mean_citytiles_end > best_citytiles_end:
+            agent1.save(name='most_citytiles_end')
+
+        if total_games % config["training"]["save_checkpoint_every_x_games"] == 0 and total_games != 0:
+            agent1.save()
 
         # Update models and append losses
         for player, agent in agents.items():
@@ -106,7 +115,7 @@ def main():
             })
 
         if time.time() - start_time > config["training"]["max_training_time"]:
-            LuxPPOAgent.save()
+            agent1.save()
 
 if __name__ == '__main__':
     main()

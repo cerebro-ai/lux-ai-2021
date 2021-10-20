@@ -1,6 +1,7 @@
 from collections import deque
 from typing import List, Deque, Tuple
 import wandb
+import os
 
 import numpy as np
 import torch
@@ -376,7 +377,11 @@ class LuxPPOAgent(LuxAgent):
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
 
-    def save(self, target="models"):
+    def save(self, target="models", name=None):
+        if name is not None:
+            target = os.path.join(target, f'{name}_complete_PPOmodel_checkpoint')
+        else:
+            target = os.path.join(target, f'complete_PPOmodel_checkpoint_epoch_{self.epoch}')
         torch.save({
             "learning_rate": self.learning_rate,
             "gamma": self.gamma,
@@ -389,4 +394,5 @@ class LuxPPOAgent(LuxAgent):
             "actor_state_dict": self.actor.state_dict(),
             "critic_optimizer_state_dict": self.critic_optimizer.state_dict()
             "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
-        },os.path.join(target, f'complete_PPOmodel_checkpoint_epoch_{self.epoch}'))
+        },
+            target)
