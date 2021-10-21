@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections import deque
-from typing import List, Deque, Tuple
+from typing import List, Deque, Any
 import wandb
 import os
 
@@ -14,10 +16,10 @@ from luxai21.models.gnn.utils import get_board_edge_index
 
 
 def compute_gae(
-        next_value: list,
-        rewards: list,
-        masks: list,
-        values: list,
+        next_value: Tensor,
+        rewards: List[Tensor],
+        masks: List[Any],
+        values: List[Tensor],
         gamma: float,
         tau: float
 ) -> List:
@@ -40,7 +42,7 @@ def compute_gae(
 
 def ppo_iter(
         epoch: int,
-        mini_batch_size: int,
+        batch_size: int,
         map_states: Tensor,
         piece_states: Tensor,
         actions: torch.Tensor,
@@ -50,24 +52,22 @@ def ppo_iter(
         advantages: torch.Tensor,
 ):
     """Yield mini-batches."""
-    batch_size = map_states.size(0)
+    rollout_length = map_states.size()[0]
 
-    #  TODO fix this
-    mini_batch_size = batch_size
     for _ in range(epoch):
-        for _ in range(batch_size // mini_batch_size):
-            rand_ids = np.random.choice(batch_size, mini_batch_size)
+        for _ in range(rollout_length // batch_size):
+            rand_ids = np.random.choice(rollout_length, batch_size)
             yield map_states[rand_ids, :], piece_states[rand_ids, :], actions[rand_ids], values[rand_ids], log_probs[
                 rand_ids], returns[rand_ids], advantages[rand_ids]
 
 
-class Coach(nn.Module):
+class MapGNN(nn.Module):
     """
     Perform Graph convolution on map and output "strategy" tensor
     """
 
     def __init__(self, in_channels, hidden_channels, out_channels):
-        super(Coach, self).__init__()
+        super(MapGNN, self).__init__()
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, out_channels)
         self.activation = nn.ReLU()
@@ -81,25 +81,30 @@ class Coach(nn.Module):
 
 
 class PieceActor(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim):
+    """
+    TODO implement to use past actions (LSTM, Transformer)
+    TODO implement deeper GNN, e.g GATv2
+    """
+
+    def __init__(self, in_dim, gnn_hidden_dim, gnn_out_dim, mlp_hidden_dim, out_dim):
         super(PieceActor, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.map_gnn = Coach(in_dim, hidden_dim, hidden_dim)
+        self.gnn_hidden_dim = gnn_hidden_dim
+        self.gnn_out_dim = gnn_out_dim
+        self.mlp_hidden_dim = mlp_hidden_dim
+
+        self.map_gnn = MapGNN(in_dim, gnn_hidden_dim, gnn_out_dim)
         self.edge_index = get_board_edge_index(12, 12, False)
         self.model = nn.Sequential(
-            nn.Linear(hidden_dim + 1, hidden_dim),
+            nn.Linear(gnn_out_dim + 1, mlp_hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, out_dim)
+            nn.Linear(mlp_hidden_dim, out_dim)
         )
 
     def forward(self, map_tensor: Tensor, piece_tensor: Tensor):
         """
         Args:
-            map_tensor: (80, 12, 12,19)
-        map_flat -> (80, 144, 19)
-        map_emb_flat -> (80, 144, 24)
-        map_emb -> (80, 12, 12 ,24)
-        cell -> (80, 80, 24)
+            map_tensor: batch of map_states. size:(80, 12, 12, 19)
+            piece_tensor
         """
         batches = map_tensor.size()[0]
         map_flat = torch.reshape(map_tensor, (batches, -1, 19))
@@ -130,13 +135,17 @@ class PieceActor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, in_dim):
+    def __init__(self, in_dim, gnn_hidden_dim, gnn_out_dim):
         super(Critic, self).__init__()
-        self.map_emb_dim = 8
-        self.map_model = Coach(in_dim, 16, self.map_emb_dim)
+        self.gnn_hidden_dim = gnn_hidden_dim
+        self.gnn_out_dim = gnn_out_dim
+
+        self.map_model = MapGNN(in_dim, gnn_hidden_dim, gnn_out_dim)
         self.edge_index = get_board_edge_index(12, 12, False)
+
+        #  TODO implement MLP which uses meta node with game_state
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels=8, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
+            nn.Conv2d(in_channels=gnn_out_dim, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
             nn.ReLU(),
             nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(3, 3), stride=(1, 1)),
             nn.ReLU(),
@@ -145,10 +154,10 @@ class Critic(nn.Module):
         )
 
     def forward(self, map_tensor: Tensor):
-        batches = map_tensor.size(0)
+        batches = map_tensor.size()[0]
         map_flat = torch.reshape(torch.FloatTensor(map_tensor), (batches, -1, 19))
         map_emb_flat = self.map_model(map_flat, self.edge_index)
-        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.map_emb_dim))
+        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.gnn_out_dim))
         if len(map_emb.size()) == 3:
             map_emb = torch.unsqueeze(map_emb, 0)
         map_emb = torch.permute(map_emb, (0, 3, 1, 2))
@@ -172,6 +181,8 @@ def split_piece_tensor(piece_tensor: Tensor):
 
 
 class LuxPPOAgent(LuxAgent):
+    MAP_FEATURES = 18
+    ACTION_SPACE = 13
 
     def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epochs, entropy_weight, **kwargs):
         super(LuxPPOAgent, self).__init__()
@@ -190,18 +201,29 @@ class LuxPPOAgent(LuxAgent):
         )
         print(self.device)
 
-        self.strategy_dim = 32
         self.piece_dim = 1
-
         self.map_size = None
 
         # networks
         self.edge_index = None
         self.edge_index_cache = {}  # this will cache the edge_indices
-        self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13).to(self.device)
 
-        # TODO implement critic on strategy map
-        self.critic = Critic(in_dim=19).to(self.device)
+        #  TODO actor and critic should share gnn embedding
+        self.actor_config = dict(
+            in_dim=self.MAP_FEATURES + 1,  # append piece type
+            gnn_hidden_dim=32,
+            gnn_out_dim=24,
+            mlp_hidden_dim=16,
+            out_dim=self.ACTION_SPACE
+        )
+        self.actor = PieceActor(**self.actor_config).to(self.device)
+
+        self.critic_config = dict(
+            in_dim=self.MAP_FEATURES + 1,
+            gnn_hidden_dim=24,
+            gnn_out_dim=16
+        )
+        self.critic = Critic(**self.critic_config).to(self.device)
 
         # optimizer
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
@@ -238,6 +260,9 @@ class LuxPPOAgent(LuxAgent):
                 self.edge_index = get_board_edge_index(map_size, map_size, with_meta_node=False)
                 self.edge_index_cache[map_size] = self.edge_index
 
+        self.actor.edge_index = self.edge_index
+        self.critic.edge_index = self.edge_index
+
     def generate_actions(self, observation: dict):
         # check if map is still of the same size
         self.update_edge_index(observation["_map"])
@@ -261,9 +286,7 @@ class LuxPPOAgent(LuxAgent):
         self.rewards.extend(rewards)
 
     def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
-        """Select a action for a pre-computed strategy vector from the map and piece
-
-        TODO incorporate piece history
+        """Select a action for from the map and piece
         """
         action, dist = self.actor(map_tensor, piece_tensor)
         selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
@@ -304,7 +327,7 @@ class LuxPPOAgent(LuxAgent):
 
         for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, adv in ppo_iter(
                 epoch=self.epochs,
-                mini_batch_size=self.batch_size,
+                batch_size=self.batch_size,
                 map_states=map_states,
                 piece_states=piece_states,
                 actions=actions,
@@ -362,10 +385,20 @@ class LuxPPOAgent(LuxAgent):
 
         return actor_loss, critic_loss
 
+    def extend_replay_data(self, agent: LuxPPOAgent):
+        """Copy the replay data from the given agent
+        """
+        self.piece_states.extend(agent.piece_states)
+        self.map_states.extend(agent.map_states)
+        self.actions.extend(agent.actions)
+        self.rewards.extend(agent.rewards)
+        self.values.extend(agent.values)
+        self.masks.extend(agent.masks)
+        self.log_probs.extend(agent.log_probs)
+
     def load(self, path):
-        self.actor = PieceActor(in_dim=19, hidden_dim=24, out_dim=13)
-        # TODO implement critic on strategy map
-        self.critic = Critic(in_dim=19)
+        self.actor = PieceActor(**self.actor_config)
+        self.critic = Critic(**self.critic_config)
 
         checkpoint = torch.load(path)
         self.learning_rate = checkpoint["learning_rate"]
@@ -373,7 +406,7 @@ class LuxPPOAgent(LuxAgent):
         self.tau = checkpoint["tau"]
         self.batch_size = checkpoint["batch_size"]
         self.epsilon = checkpoint["epsilon"]
-        self.epoch = checkpoint["epoch"]
+        self.epochs = checkpoint["epoch"]
         self.entropy_weight = checkpoint["entropy_weight"]
 
         self.critic.load_state_dict(checkpoint["critic_state_dict"])
@@ -381,25 +414,25 @@ class LuxPPOAgent(LuxAgent):
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
 
-        self.critic.to(device)
-        self.actor.to(device)
- 
+        self.critic.to(self.device)
+        self.actor.to(self.device)
+
     def save(self, target="models", name=None):
         if name is not None:
             target = os.path.join(target, f'{name}_complete_PPOmodel_checkpoint')
         else:
-            target = os.path.join(target, f'complete_PPOmodel_checkpoint_epoch_{self.epoch}')
+            target = os.path.join(target, f'complete_PPOmodel_checkpoint_epoch_{self.epochs}')
         torch.save({
             "learning_rate": self.learning_rate,
             "gamma": self.gamma,
             "tau": self.tau,
             "batch_size": self.batch_size,
             "epsilon": self.epsilon,
-            "epoch": self.epoch,
+            "epoch": self.epochs,
             "entropy_weight": self.entropy_weight,
             "critic_state_dict": self.critic.to('cpu').state_dict(),
             "actor_state_dict": self.actor.to('cpu').state_dict(),
-            "critic_optimizer_state_dict": self.critic_optimizer.state_dict()
+            "critic_optimizer_state_dict": self.critic_optimizer.state_dict(),
             "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
         },
             target)

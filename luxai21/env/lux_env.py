@@ -54,9 +54,15 @@ class LuxEnv(ParallelEnv):
         self.game_config = config["game"]
         self.env_config = config["env"]
         self.reward_config = config["reward"]
+        self.seed = None
 
         lux_game_config = LuxMatchConfigs_Default.copy()
         lux_game_config.update(self.game_config)
+        if "seed" not in lux_game_config or lux_game_config["seed"] is None:
+            lux_game_config["seed"] = random.randint(0, 50000)
+        else:
+            self.seed = lux_game_config["seed"]
+
         self.game_state = Game(lux_game_config)
         # rendering
         self.game_state.start_replay_logging(stateful=True)
@@ -188,7 +194,11 @@ class LuxEnv(ParallelEnv):
             Observation of the first state
         """
         # get new map_seed
-        seed = random.randint(0, 200000)
+        if self.seed is None:
+            seed = random.randint(0, 200000)
+        else:
+            seed = self.seed
+
         self.game_state.configs["seed"] = seed
         self.game_state.reset()
         self.turn = 0
@@ -338,6 +348,8 @@ class LuxEnv(ParallelEnv):
         rewards = np.zeros(2)
 
         for i, agent in enumerate(self.agents):
+
+            rewards[i] += reward_config["TURN"]
 
             # reward new cities
             delta_city_tiles = get_city_tile_count(self.game_state.cities, i) - get_city_tile_count(
