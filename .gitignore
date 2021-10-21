@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# User specific config
+hyperparams.yaml
+
+# Lux Game Replays
+replays
+
 # Weights & Biases files
 wandb/
 

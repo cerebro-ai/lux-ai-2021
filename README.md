@@ -1,4 +1,5 @@
 # lux-ai-2021
+
 Lux AI 2021 Competition
 
 Code for the Lux AI Reinforcement Challenge
@@ -7,10 +8,78 @@ Code for the Lux AI Reinforcement Challenge
 - Specs: https://www.lux-ai.org/specs-2021
 - Visualize: https://2021vis.lux-ai.org/
 
+## Run locally
+
+Check out the repo
+
+Install requirements
+```shell
+pip install -r requirements.txt
+```
+
+Create hyperparameters file
+```yaml
+# ./hyperparams.yaml
+
+seed: 505
+
+wandb:
+  entity: rkstgr
+  project: luxai21
+  notes: First run with GNNs (example config)
+  tags:
+    - GNNs
+    - Reward_func1
+  replay_every_x_updates: 5
+
+game:
+  height: 12
+  width: 12
+
+training:
+  max_games: 100000
+  max_replay_buffer_size: 4096
+  max_training_time: 30600
+  save_checkpoint_every_x_updates: 10
+
+agent:
+  batch_size: 512
+  entropy_weight: 0.005
+  epochs: 2
+  epsilon: 0.1
+  gamma: 0.985
+  learning_rate: 0.001
+  tau: 0.8
+
+env:
+  allow_carts: false
+
+reward:
+  BUILD_CART: 0.05
+  BUILD_CITY_TILE: 0.1
+  BUILD_WORKER: 0.05
+  CITY_AT_END: 1
+  GAIN_RESEARCH_POINT: 0.01
+  RESEARCH_COAL: 0.1
+  RESEARCH_URANIUM: 0.5
+  START_NEW_CITY: 0
+  TURN: 0.01
+  UNIT_AT_END: 0.1
+  WIN: 1
+  ZERO_SUM: false
+
+```
+
+Run locally
+```shell
+export PYTHONPATH=.
+python luxai21/train_agent.py
+```
 
 ## Set up kaggle notebook
 
 Install the required packages
+
 ```shell
 !pip install git+https://<username>:<token or password>@github.com/cerebro-ai/lux-ai-2021.git
 !pip install git+https://<username>:<token or password>@github.com/cerebro-ai/lux-python-env.git
@@ -18,55 +87,87 @@ Install the required packages
 ``` 
 
 Set API Key for Weights & Biases (Metrics logging)
+and loglevel of logger
+
 ```python
 import os
-os.environ["WANDB_API_KEY"] = "your api key"
 
+os.environ["WANDB_API_KEY"] = "your api key"
+os.environ["LOGURU_LEVEL"] = "WARNING"
 ```
 
-
 Now you can create a dict with the hyperparameters
+
 ```python
-import yaml
+config = {
+    "seed": 505,
+    "wandb": {
+        "entity": "cerebro-ai",
+        "project": "luxai21",
+        "notes": "",
+        "tags": ["GNNs"],
+        "replay_every_x_updates": 10
+    },
+    "game": {
+        "width": 12,
+        "height": 12,
+    },
+    "env": {
+        # if action_mask should allow the building of carts, also affects transfer to carts action
+        "allow_carts": False,
+        # TODO implement "allow_transfer"
+    },
+    "training": {
+        # total games that should be played
+        "max_games": 100000,
+        "max_training_time": 30600,
 
-config_dict = yaml.safe_load("""---
-wandb:
-  entity: cerebro-ai
-  project: luxai21
-  # supporting all attributes: https://docs.wandb.ai/ref/python/init 
+        # will update model after replay_buffer size exceeds this 
+        "max_replay_buffer_size": 4096,
+        "save_checkpoint_every_x_updates": 10
+    },
+    "agent": {
+        "learning_rate": 0.001,
+        "gamma": 0.985,  # discount of future rewards
+        "tau": 0.8,
+        "batch_size": 512,
+        "epsilon": 0.1,  # PPO clipping range
+        "epochs": 2,
+        "entropy_weight": 0.005
+    },
+    "reward": {
+        "TURN": 0.01,  # base reward every turn
 
-training:
-  learning_rate: 0.001
-  gamma: 0.995
-  gae_lambda: 0.95
-  batch_size: 128 # testing gradients
-  step_count: 8388608
-  n_steps: 8192
-  n_envs: 1  # Number of parallel environments to use in training
+        # BUILDING
+        # reward for every new piece, 
+        # will also be applied negatively if units disappear
+        "BUILD_CITY_TILE": 0.1,
+        "BUILD_WORKER": 0.05,
+        "BUILD_CART": 0.05,
 
-model:
-  map_emb_dim: 128
-  # TODO insert feature_extractor parameters
-  net_arch_shared_layers: [128]
-  net_arch_pi: [64, 32] # policy-function
-  net_arch_vf: [128, 64, 32] # value-function
-  lstm_config:
-    # input_size is implicitly given through the map_emb_dim
-    # batch_first is also always true
-    hidden_size: 128
-    num_layers: 4
-    # dropout: 0.2
-    # supports all attributes of pytorch LSTM: https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html
-""")
+        "START_NEW_CITY": 0,  # if the building of a city_tile leads to a new city
+
+        # RESEARCH
+        "GAIN_RESEARCH_POINT": 0.01,
+        "RESEARCH_COAL": 0.1,  # reach enough research points for coal
+        "RESEARCH_URANIUM": 0.5,
+
+        # END
+        "CITY_AT_END": 1,
+        "UNIT_AT_END": 0.1,  # worker and cart
+        "WIN": 1,
+
+        # if true it will center the agent rewards around zero, and one agent will get a negative reward
+        "ZERO_SUM": False
+    },
+}
+
 ```
 
 and start training
 
 ```python
-from luxai21.train import train
-from luxai21.config import Hyperparams
-
-config = Hyperparams.load(config_dict)
+from luxai21.train_agent import train
 
 train(config)
 ```

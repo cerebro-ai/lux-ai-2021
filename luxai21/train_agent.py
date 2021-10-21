@@ -1,4 +1,5 @@
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ import wandb
 import time
 import copy
 
+import yaml
 from tqdm import tqdm
 from loguru import logger as log
 
@@ -27,7 +29,9 @@ def set_seed(seed: int):
 
 def train(config=None):
     log.info(f"Start training")
-    start_time = time.time() # since kaggle notebooks only run for 9 hours
+    start_time = time.time()  # since kaggle notebooks only run for 9 hours
+
+    log.debug(f"Seed: {config.get('seed')}")
 
     if config is None:
         config = example_config.config
@@ -152,4 +156,8 @@ def train(config=None):
 
 
 if __name__ == '__main__':
-    train()
+    params_file = Path(__file__).parent.parent.joinpath("hyperparams.yaml")
+    with params_file.open("r") as f:
+        hyperparams = yaml.safe_load(f)
+
+    train(hyperparams)
