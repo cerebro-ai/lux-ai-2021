@@ -1,3 +1,4 @@
+import os
 import random
 from pathlib import Path
 
@@ -31,6 +32,7 @@ def train(config=None):
     log.info(f"Start training")
     start_time = time.time()  # since kaggle notebooks only run for 9 hours
 
+    loglevel = os.environ.get("LOGURU_LEVEL")
     log.debug(f"Seed: {config.get('seed')}")
 
     if config is None:
@@ -83,8 +85,9 @@ def train(config=None):
             done = env.game_state.match_over()
             log.debug(f"Start game {games}")
 
+            if loglevel not in ["WARNING", "ERROR"]:
+                turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
             # GAME TURNS
-            turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
             while not done:
                 # 1. generate actions
                 actions = {
@@ -108,9 +111,12 @@ def train(config=None):
 
                 # 4. check if game is over
                 done = env.game_state.match_over()
-                turn_bar.update(1)
 
-            turn_bar.close()
+                if loglevel not in ["WARNING", "ERROR"]:
+                    turn_bar.update(1)
+
+            if loglevel not in ["WARNING", "ERROR"]:
+                turn_bar.close()
             # GAME ENDS
             citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
             games += 1
