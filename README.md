@@ -70,6 +70,12 @@ reward:
 
 ```
 
+Run locally
+```shell
+export PYTHONPATH=.
+python luxai21/train_agent.py
+```
+
 ## Set up kaggle notebook
 
 Install the required packages
