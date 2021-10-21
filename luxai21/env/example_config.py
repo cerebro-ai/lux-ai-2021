@@ -1,9 +1,14 @@
+import warnings
+
+warnings.warn("Example config should not be used. Look into Readme to use hyperparameters.yaml config",
+              DeprecationWarning)
+
 config = {
     "seed": 505,
     "wandb": {
-        "entity": "cerebro-ai",
+        "entity": "rkstgr",
         "project": "luxai21",
-        "notes": "First run with GNNs",
+        "notes": "First run with GNNs (example config)",
         "tags": ["GNNs", "Reward_func1"],
         "replay_every_x_updates": 5
     },
