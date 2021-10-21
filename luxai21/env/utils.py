@@ -412,10 +412,14 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
         # BUILD CITY & PILLAGE
         if unit.is_worker():
             if unit.can_build(game_state.map):
-                action_mask[7] = 1
 
-            if game_state.map.get_cell_by_pos(unit.pos).road > 0:
-                action_mask[8] = 1
+                # check that unit is not on a city tile
+                cell = game_state.map.get_cell_by_pos(unit.pos)
+                if cell.city_tile is None:
+                    action_mask[7] = 1
+
+                    if game_state.map.get_cell_by_pos(unit.pos).road > 0:
+                        action_mask[8] = 1
 
     elif city_tile is not None:
         # do nothing
@@ -477,7 +481,7 @@ def get_cart_count(game_state: Dict, team: int):
     return count
 
 
-def log_and_get_citytiles_game_end(game_state: Dict):
+def log_and_get_citytiles_game_end(game_state: Game):
     # TODO Split according to map size
     citytiles_player_one = get_city_tile_count(game_state.cities, 0)
     citytiles_player_two = get_city_tile_count(game_state.cities, 1)
