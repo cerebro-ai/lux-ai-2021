@@ -25,11 +25,12 @@ def set_seed(seed: int):
     random.seed(seed)
 
 
-def main():
+def train(config=None):
     log.info(f"Start training")
+    start_time = time.time() # since kaggle notebooks only run for 9 hours
 
-    start_time = time.time()  # since kaggle notebooks only run for 9 hours
-    config = example_config.config
+    if config is None:
+        config = example_config.config
 
     set_seed(config["seed"])
 
@@ -63,6 +64,7 @@ def main():
     update_step = 0
     total_games = 0
     best_citytiles_end = 10
+    count_updates = 0
     best_model = None
     obs = None
 
@@ -127,7 +129,6 @@ def main():
 
         update_step += 1
 
-        # Update models and append losses
         # transfer replay data from agent1 to agent2
         agent1.extend_replay_data(agent2)
         actor_loss, critic_loss = agent1.update_model(obs["player_0"])
@@ -137,7 +138,7 @@ def main():
         for agent in agents.values():
             agent.match_over_callback()
 
-        if total_games % config["wandb"]["replay_every_x_games"] == 0 and total_games != 0:
+        if count_updates % config["wandb"]["replay_every_x_updates"] == 0 and count_updates != 0:
             wandb.log({
                 f"Replay_step{total_games}": wandb.Html(env.render())
             })
@@ -151,4 +152,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    train()
