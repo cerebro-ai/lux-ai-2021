@@ -158,6 +158,6 @@ def train(config=None):
 if __name__ == '__main__':
     params_file = Path(__file__).parent.parent.joinpath("hyperparams.yaml")
     with params_file.open("r") as f:
-        config = yaml.safe_load(f)
+        hyperparams = yaml.safe_load(f)
 
-    train(config)
+    train(hyperparams)
