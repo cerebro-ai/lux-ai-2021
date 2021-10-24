@@ -24,78 +24,88 @@ class MapEmbeddingBlock(nn.Module):
 
 class MapEmbeddingTower(nn.Module):
 
-    def __init__(self, gnn_module, input_dim, hidden_dim, output_dim, num_layers, activation, **kwargs):
+    def __init__(self, input_dim, hidden_dim, output_dim, **kwargs):
         super(MapEmbeddingTower, self).__init__()
 
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
-        self.num_layers = num_layers
-        self.activation = activation
+        self.activation = torch.nn.ELU()
 
-        GNN = gnn_module
+        self.layer1 = GATv2Conv(in_channels=input_dim,
+                                out_channels=hidden_dim,
+                                **kwargs
+                                )
 
-        self.layer1 = GNN(in_channels=self.input_dim,
-                          out_channels=self.hidden_dim,
-                          **kwargs
-                          )
+        self.layer2 = GATv2Conv(in_channels=hidden_dim,
+                                out_channels=hidden_dim,
+                                **kwargs
+                                )
 
-        self.blocks = [
-            MapEmbeddingBlock(gnn_module=GNN,
-                              hidden_dim=hidden_dim,
-                              activation=self.activation,
-                              **kwargs
-                              )
-            for _ in range(num_layers - 2)
-        ]
+        self.layer3 = GATv2Conv(in_channels=hidden_dim,
+                                out_channels=hidden_dim,
+                                **kwargs
+                                )
 
-        self.last_layer = GNN(in_channels=hidden_dim,
-                              out_channels=output_dim,
-                              **kwargs
-                              )
+        # self.blocks = [
+        #     MapEmbeddingBlock(gnn_module=GNN,
+        #                       hidden_dim=hidden_dim,
+        #                       activation=self.activation,
+        #                       **kwargs
+        #                       )
+        #     for _ in range(num_layers - 2)
+        # ]
+
+        self.last_layer = GCNConv(in_channels=3 * hidden_dim + input_dim,
+                                  out_channels=output_dim,
+                                  **kwargs
+                                  )
 
     def forward(self, map_tensor: Tensor, edge_index: Tensor):
-        x = self.layer1(map_tensor, edge_index)
-        x = self.activation(x)
+        # TODO implement skip connections
 
-        for block in self.blocks:
-            x = block(x, edge_index)
+        out1 = self.layer1(map_tensor, edge_index)
+        out1 = self.activation(out1)
 
-        x = self.last_layer(x, edge_index)
+        out2 = self.layer2(out1, edge_index)
+        out2 = self.activation(out2)
+
+        out3 = self.layer2(out2, edge_index)
+        out3 = self.activation(out3)
+
+        out_cat = torch.cat([map_tensor, out1, out2, out3], dim=1)
+
+        x = self.last_layer(out_cat, edge_index)
         x = self.activation(x)
         return x
 
 
 if __name__ == '__main__':
     from torchsummary import summary
-    from utils import get_board_edge_index
+    from utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
 
-    edge_index = get_board_edge_index(12, 12, False)
-
-    gnn = GatedGraphConv(out_channels=64,
-                         num_layers=4)
-
-    y = gnn(torch.rand((144, 19)), edge_index)
-    print(y.size())
-
+    edge_index = get_board_edge_index(12, 12, True)
     tower = MapEmbeddingTower(
-        gnn_module=gnn,
         input_dim=19,
-        hidden_dim=64,
-        output_dim=64,
-        num_layers=20,
-        activation=torch.nn.functional.elu
+        hidden_dim=36,
+        output_dim=128,
     )
 
-    block = MapEmbeddingBlock(
-        gnn_module=gnn,
-        hidden_dim=64,
-        activation=torch.nn.functional.elu
-    )
+    map_tensor = torch.rand((2, 145, 19))
+    x, e, b = batches_to_large_graph(map_tensor, edge_index)
 
-    tower.forward = partial(tower.forward, edge_index=edge_index)
-    block.forward = partial(block.forward, edge_index=edge_index)
+    y = tower(x, e)
 
-    summary(tower, (144, 19))
+    map_emb, ee = large_graph_to_batches(y, e, b)
 
-    summary(block, (144, 64))
+    print(map_emb.size())
+
+    assert torch.all(edge_index == ee)
+
+    # towerforward = tower.forward
+    #
+    #
+    # def forward(*x):
+    #     return towerforward(x[0][0], edge_index)
+    #
+    #
+    # tower.forward = forward
+    #
+    # summary(tower, (145, 19), batch_size=1)
