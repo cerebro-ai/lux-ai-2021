@@ -12,7 +12,8 @@ from torch.distributions import Categorical
 from torch_geometric.nn import GCNConv
 
 from luxai21.agent.lux_agent import LuxAgent
-from luxai21.models.gnn.utils import get_board_edge_index
+from luxai21.models.gnn.map_embedding import MapEmbeddingTower
+from luxai21.models.gnn.utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
 
 
 def compute_gae(
@@ -61,56 +62,43 @@ def ppo_iter(
                 rand_ids], returns[rand_ids], advantages[rand_ids]
 
 
-class MapGNN(nn.Module):
-    """
-    Perform Graph convolution on map and output "strategy" tensor
-    """
-
-    def __init__(self, in_channels, hidden_channels, out_channels):
-        super(MapGNN, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, out_channels)
-        self.activation = nn.ReLU()
-
-    def forward(self, map: Tensor, edge_index: torch.Tensor):
-        x = self.conv1(map, edge_index)
-        x = self.activation(x)
-        x = self.conv2(x, edge_index)
-        x = self.activation(x)
-        return x
-
-
 class PieceActor(nn.Module):
     """
     TODO implement to use past actions (LSTM, Transformer)
-    TODO implement deeper GNN, e.g GATv2
     """
 
-    def __init__(self, in_dim, gnn_hidden_dim, gnn_out_dim, mlp_hidden_dim, out_dim):
+    def __init__(self, mlp_hidden_dim, out_dim, embedding_model):
         super(PieceActor, self).__init__()
-        self.gnn_hidden_dim = gnn_hidden_dim
-        self.gnn_out_dim = gnn_out_dim
         self.mlp_hidden_dim = mlp_hidden_dim
 
-        self.map_gnn = MapGNN(in_dim, gnn_hidden_dim, gnn_out_dim)
-        self.edge_index = get_board_edge_index(12, 12, False)
+        self.map_gnn = embedding_model
+
         self.model = nn.Sequential(
-            nn.Linear(gnn_out_dim + 1, mlp_hidden_dim),
-            nn.ReLU(),
+            nn.Linear(embedding_model.output_dim + 3, mlp_hidden_dim),
+            nn.ELU(),
+            nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
+            nn.ELU(),
             nn.Linear(mlp_hidden_dim, out_dim)
         )
 
-    def forward(self, map_tensor: Tensor, piece_tensor: Tensor):
+    def forward(self, map_tensor: Tensor, piece_tensor: Tensor, edge_index):
         """
         Args:
             map_tensor: batch of map_states. size:(80, 12, 12, 19)
             piece_tensor
         """
+        assert map_tensor.dim() == 4  # batch, x, y, features
         batches = map_tensor.size()[0]
-        map_flat = torch.reshape(map_tensor, (batches, -1, 19))
-        map_emb_flat = self.map_gnn(map_flat, self.edge_index)
+        features = map_tensor.size()[2]
+        map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
+
+        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
+        large_map_emb_flat = self.map_gnn(x, large_edge_index)
+
+        map_emb_flat = large_graph_to_batches(large_map_emb_flat, None, None)
 
         p_type, pos, action_mask = split_piece_tensor(piece_tensor)
+        p_type_encoding = nn.functional.one_hot(p_type, 3)
 
         """
         Alternative:
@@ -124,7 +112,7 @@ class PieceActor(nn.Module):
         indices = j[..., None, None].expand(-1, 1, map_emb_flat.size(2))
         cell_state = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
 
-        piece_state = torch.cat([cell_state, p_type], 1)
+        piece_state = torch.cat([cell_state, p_type_encoding], 1)
 
         logits = self.model(piece_state)
         mask_value = torch.finfo(logits.dtype).min
@@ -135,33 +123,34 @@ class PieceActor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, in_dim, gnn_hidden_dim, gnn_out_dim):
+    def __init__(self, embedding_model, hidden_dim):
         super(Critic, self).__init__()
-        self.gnn_hidden_dim = gnn_hidden_dim
-        self.gnn_out_dim = gnn_out_dim
+        self.embedding_model = embedding_model
 
-        self.map_model = MapGNN(in_dim, gnn_hidden_dim, gnn_out_dim)
-        self.edge_index = get_board_edge_index(12, 12, False)
-
-        #  TODO implement MLP which uses meta node with game_state
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels=gnn_out_dim, out_channels=4, kernel_size=(3, 3), stride=(1, 1)),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=4, out_channels=1, kernel_size=(3, 3), stride=(1, 1)),
-            nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(1 * 8 * 8, 1)
+            nn.Linear(in_features=embedding_model.output_dim,
+                      out_features=hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=hidden_dim, out_features=1),
+            nn.Tanh()
         )
 
-    def forward(self, map_tensor: Tensor):
+    def forward(self, map_tensor: Tensor, edge_index: Tensor):
         batches = map_tensor.size()[0]
-        map_flat = torch.reshape(torch.FloatTensor(map_tensor), (batches, -1, 19))
-        map_emb_flat = self.map_model(map_flat, self.edge_index)
-        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.gnn_out_dim))
-        if len(map_emb.size()) == 3:
-            map_emb = torch.unsqueeze(map_emb, 0)
-        map_emb = torch.permute(map_emb, (0, 3, 1, 2))
-        value = self.model(map_emb)
+        features = map_tensor.size()[2]
+        map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
+
+        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
+        large_map_emb_flat = self.map_gnn(x, large_edge_index)
+
+        map_emb_flat = large_graph_to_batches(large_map_emb_flat, None, None)
+
+        # (10, 145, 128)
+
+        meta_node_state = map_emb_flat[:, -1, :]
+        value = self.model(meta_node_state)
         return value
 
 
@@ -208,21 +197,25 @@ class LuxPPOAgent(LuxAgent):
         self.edge_index = None
         self.edge_index_cache = {}  # this will cache the edge_indices
 
-        #  TODO actor and critic should share gnn embedding
-        self.actor_config = dict(
-            in_dim=self.MAP_FEATURES + 1,  # append piece type
-            gnn_hidden_dim=32,
-            gnn_out_dim=24,
-            mlp_hidden_dim=16,
-            out_dim=self.ACTION_SPACE
+        self.tower = MapEmbeddingTower(
+            input_dim=19,
+            hidden_dim=128,
+            output_dim=128
         )
-        self.actor = PieceActor(**self.actor_config).to(self.device)
+
+        self.actor_config = dict(
+            mlp_hidden_dim=64,
+            out_dim=13,
+            embedding_model=self.tower
+        )
 
         self.critic_config = dict(
-            in_dim=self.MAP_FEATURES + 1,
-            gnn_hidden_dim=24,
-            gnn_out_dim=16
+            embedding_model=self.tower,
+            hidden_dim=64,
         )
+
+        self.actor = PieceActor(**self.actor_config).to(self.device)
+
         self.critic = Critic(**self.critic_config).to(self.device)
 
         # optimizer

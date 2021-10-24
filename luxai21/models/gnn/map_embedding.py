@@ -27,6 +27,8 @@ class MapEmbeddingTower(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, **kwargs):
         super(MapEmbeddingTower, self).__init__()
 
+        self.output_dim = output_dim
+
         self.activation = torch.nn.ELU()
 
         self.layer1 = GATv2Conv(in_channels=input_dim,
