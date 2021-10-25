@@ -1,5 +1,8 @@
+from typing import Optional
+
 import networkx as nx
 import torch
+from torch import Tensor
 from torch_geometric.utils import from_networkx
 
 
@@ -49,13 +52,12 @@ def batches_to_large_graph(map_batch: torch.Tensor, edge_index: torch.Tensor):
     return x, large_edge_index, n_batches
 
 
-def large_graph_to_batches(map_tensor, edge_index, n_batches):
+def large_graph_to_batches(map_tensor: Tensor, edge_index: Optional[Tensor], n_batches: int):
     """Inverse of function 'batches_to_large_graph'
 
 
     """
     assert map_tensor.dim() == 2
-    assert edge_index.dim() == 2
 
     features = map_tensor.size()[1]
     x = map_tensor.view(n_batches, -1, features)

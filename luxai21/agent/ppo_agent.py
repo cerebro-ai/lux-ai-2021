@@ -62,50 +62,60 @@ def ppo_iter(
                 rand_ids], returns[rand_ids], advantages[rand_ids]
 
 
-class PieceActor(nn.Module):
-    """
-    TODO implement to use past actions (LSTM, Transformer)
-    """
+class ActorCritic(nn.Module):
+    def __init__(self, num_actions, policy_hidden_dim, value_hidden_dim, with_meta_node, embedding):
+        super(ActorCritic, self).__init__()
 
-    def __init__(self, mlp_hidden_dim, out_dim, embedding_model):
-        super(PieceActor, self).__init__()
-        self.mlp_hidden_dim = mlp_hidden_dim
+        self.with_meta_node = with_meta_node
 
-        self.map_gnn = embedding_model
-
-        self.model = nn.Sequential(
-            nn.Linear(embedding_model.output_dim + 3, mlp_hidden_dim),
-            nn.ELU(),
-            nn.Linear(mlp_hidden_dim, mlp_hidden_dim),
-            nn.ELU(),
-            nn.Linear(mlp_hidden_dim, out_dim)
+        self.embedding_model = MapEmbeddingTower(
+            **embedding
         )
 
-    def forward(self, map_tensor: Tensor, piece_tensor: Tensor, edge_index):
+        self.policy_head_network = nn.Sequential(
+            nn.Linear(in_features=embedding["output_dim"] + 3,
+                      out_features=policy_hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=policy_hidden_dim,
+                      out_features=policy_hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=policy_hidden_dim,
+                      out_features=num_actions)
+        )
+
+        self.value_head_network = nn.Sequential(
+            nn.Linear(in_features=self.embedding_model.output_dim,
+                      out_features=value_hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=value_hidden_dim,
+                      out_features=value_hidden_dim),
+            nn.ELU(),
+            nn.Linear(in_features=value_hidden_dim,
+                      out_features=1),
+            nn.Tanh()
+        )
+
+        self.edge_index_cache = {}
+
+    def forward(self, map_tensor, piece_tensor):
         """
-        Args:
-            map_tensor: batch of map_states. size:(80, 12, 12, 19)
-            piece_tensor
+
+        Returns:
+            action, dist, value
         """
         assert map_tensor.dim() == 4  # batch, x, y, features
-        batches = map_tensor.size()[0]
-        features = map_tensor.size()[2]
-        map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
+        map_emb_flat = self.embed_map(map_tensor)
 
-        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
-        large_map_emb_flat = self.map_gnn(x, large_edge_index)
+        action, dist = self.get_action(map_emb_flat, piece_tensor)
+        value = self.value(map_emb_flat)
 
-        map_emb_flat = large_graph_to_batches(large_map_emb_flat, None, None)
+        return action, dist, value
 
+    def get_action(self, map_emb_flat, piece_tensor):
         p_type, pos, action_mask = split_piece_tensor(piece_tensor)
-        p_type_encoding = nn.functional.one_hot(p_type, 3)
 
-        """
-        Alternative:
-        map_emb = torch.reshape(map_emb_flat, (-1, 12, 12, self.hidden_dim))
-
-        cell_state = torch.cat([map_emb[i, pos[i, 0], pos[i, 1], :].unsqueeze(0) for i in range(80)])
-        """
+        p_type_encoding = nn.functional.one_hot(p_type.squeeze(0), 3)
+        batches = map_emb_flat.size()[0]
 
         j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1)
         j = torch.sum(pos * j_h, 1).long()
@@ -114,43 +124,47 @@ class PieceActor(nn.Module):
 
         piece_state = torch.cat([cell_state, p_type_encoding], 1)
 
-        logits = self.model(piece_state)
+        logits = self.policy_head_network(piece_state)
         mask_value = torch.finfo(logits.dtype).min
         logits_masked = logits.masked_fill(~action_mask, mask_value)
         dist = Categorical(logits=logits_masked)
         action = dist.sample()
         return action, dist
 
+    def embed_map(self, map_tensor):
+        """
 
-class Critic(nn.Module):
-    def __init__(self, embedding_model, hidden_dim):
-        super(Critic, self).__init__()
-        self.embedding_model = embedding_model
+        Returns:
+            flat_map_emb: Tensor of size [batches, nodes, features]
+        """
+        assert map_tensor.dim() == 4
 
-        self.model = nn.Sequential(
-            nn.Linear(in_features=embedding_model.output_dim,
-                      out_features=hidden_dim),
-            nn.ELU(),
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
-            nn.ELU(),
-            nn.Linear(in_features=hidden_dim, out_features=1),
-            nn.Tanh()
-        )
-
-    def forward(self, map_tensor: Tensor, edge_index: Tensor):
         batches = map_tensor.size()[0]
-        features = map_tensor.size()[2]
+        map_size_x = map_tensor.size()[1]
+        map_size_y = map_tensor.size()[2]
+        features = map_tensor.size()[3]
+
+        assert map_size_x == map_size_y, f"Map is not quadratic: {map_tensor.size()}"
+
         map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
 
+        # get edge_index from cache or compute new and cache
+        if map_size_x in self.edge_index_cache:
+            edge_index = self.edge_index_cache[map_size_x]
+        else:
+            edge_index = get_board_edge_index(map_size_x, map_size_y, self.with_meta_node)
+            self.edge_index_cache[map_size_x] = edge_index
+
         x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
-        large_map_emb_flat = self.map_gnn(x, large_edge_index)
+        large_map_emb_flat = self.embedding_model(x, large_edge_index)
 
-        map_emb_flat = large_graph_to_batches(large_map_emb_flat, None, None)
+        map_emb_flat, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
+        return map_emb_flat
 
-        # (10, 145, 128)
-
+    def value(self, map_emb_flat):
+        # extract meta node
         meta_node_state = map_emb_flat[:, -1, :]
-        value = self.model(meta_node_state)
+        value = self.value_head_network(meta_node_state)
         return value
 
 
@@ -163,7 +177,7 @@ def piece_to_tensor(piece: dict):
 
 
 def split_piece_tensor(piece_tensor: Tensor):
-    p_type = torch.narrow(piece_tensor, 1, 0, 1)
+    p_type = torch.narrow(piece_tensor, 1, 0, 1).long()
     pos = torch.narrow(piece_tensor, 1, 1, 2).long()
     action_mask = torch.narrow(piece_tensor, 1, 3, 13).bool()
     return p_type, pos, action_mask
@@ -173,16 +187,19 @@ class LuxPPOAgent(LuxAgent):
     MAP_FEATURES = 18
     ACTION_SPACE = 13
 
-    def __init__(self, learning_rate, gamma, tau, batch_size, epsilon, epochs, entropy_weight, **kwargs):
+    def __init__(self, learning: dict, model: dict, **kwargs):
         super(LuxPPOAgent, self).__init__()
 
-        self.learning_rate = learning_rate
-        self.gamma = gamma
-        self.tau = tau
-        self.batch_size = batch_size
-        self.epsilon = epsilon
-        self.epochs = epochs
-        self.entropy_weight = entropy_weight
+        self.learning_rate = learning.get("learning_rate", 0.001)
+        self.gamma = learning.get("gamma", 0.98)
+        self.tau = learning.get("tau", 0.8)
+        self.batch_size = learning.get("batch_size")
+        self.clip_param = learning.get("clip_param", 0.2)
+        self.epochs = learning.get("epochs", 2)
+        self.entropy_weight = learning.get("entropy_weight", 0.0005)
+
+        self.learning_config = learning
+        self.model_config = model
 
         # device: cpu / gpu
         self.device = torch.device(
@@ -193,34 +210,9 @@ class LuxPPOAgent(LuxAgent):
         self.piece_dim = 1
         self.map_size = None
 
-        # networks
-        self.edge_index = None
-        self.edge_index_cache = {}  # this will cache the edge_indices
+        self.actor_critic = ActorCritic(**model).to(self.device)
 
-        self.tower = MapEmbeddingTower(
-            input_dim=19,
-            hidden_dim=128,
-            output_dim=128
-        )
-
-        self.actor_config = dict(
-            mlp_hidden_dim=64,
-            out_dim=13,
-            embedding_model=self.tower
-        )
-
-        self.critic_config = dict(
-            embedding_model=self.tower,
-            hidden_dim=64,
-        )
-
-        self.actor = PieceActor(**self.actor_config).to(self.device)
-
-        self.critic = Critic(**self.critic_config).to(self.device)
-
-        # optimizer
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
+        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
         # memory for training
         self.map_states: List[Tensor] = []
@@ -239,26 +231,7 @@ class LuxPPOAgent(LuxAgent):
         # mode: train / test
         self.is_test = False
 
-    def update_edge_index(self, _map: np.ndarray):
-        """
-        Between games the map can change in size, but since this does not happen to often,
-        we check that here and update only if we need to. Already called edge_indices are stored in the cache
-        """
-        map_size = _map.shape[1]
-        if self.map_size is None or map_size != self.map_size:
-            self.map_size = map_size
-            if map_size in self.edge_index_cache:
-                self.edge_index = self.edge_index_cache[map_size]
-            else:
-                self.edge_index = get_board_edge_index(map_size, map_size, with_meta_node=False)
-                self.edge_index_cache[map_size] = self.edge_index
-
-        self.actor.edge_index = self.edge_index
-        self.critic.edge_index = self.edge_index
-
     def generate_actions(self, observation: dict):
-        # check if map is still of the same size
-        self.update_edge_index(observation["_map"])
 
         actions = {}
         for piece_id, piece in observation.items():
@@ -281,12 +254,11 @@ class LuxPPOAgent(LuxAgent):
     def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
         """Select a action for from the map and piece
         """
-        action, dist = self.actor(map_tensor, piece_tensor)
+        action, dist, value = self.actor_critic(map_tensor, piece_tensor)
         selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
 
         if not self.is_test:
             # in training mode
-            value = self.critic(map_tensor)
             self.map_states.append(map_tensor)
             self.piece_states.append(piece_tensor)
             self.actions.append(torch.unsqueeze(selected_action, 0))
@@ -299,7 +271,8 @@ class LuxPPOAgent(LuxAgent):
         device = self.device
 
         _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
-        next_value = self.critic(_map)
+        _map_emb = self.actor_critic.embed_map(_map)
+        next_value = self.actor_critic.value(_map_emb)
 
         returns = compute_gae(next_value,
                               self.rewards,
@@ -316,9 +289,9 @@ class LuxPPOAgent(LuxAgent):
         log_probs = torch.cat(self.log_probs).detach()
         advantages = returns - values
 
-        actor_losses, critic_losses = [], []
+        losses = []
 
-        for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, adv in ppo_iter(
+        for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, advantage in ppo_iter(
                 epoch=self.epochs,
                 batch_size=self.batch_size,
                 map_states=map_states,
@@ -329,54 +302,35 @@ class LuxPPOAgent(LuxAgent):
                 returns=returns,
                 advantages=advantages
         ):
-            _, dist = self.actor(map_tensor, piece_tensor)
-            log_prob = dist.log_prob(action)
-            ratio = (log_prob - old_log_prob).exp()
-
-            # actor loss
-            surr_loss = ratio * adv
-            clipped_surr_loss = (
-                    torch.clamp(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * adv
-            )
-
+            action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             entropy = dist.entropy().mean()
-            wandb.log({'entropy': entropy})
+            new_log_probs = dist.log_prob(action)
 
-            actor_loss = (
-                    - torch.min(surr_loss, clipped_surr_loss).mean()
-                    - entropy * self.entropy_weight
-            )
+            ratio = (new_log_probs - log_probs).exp()
+            surr1 = ratio * advantage
+            surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
 
-            # critic loss
-            value = self.critic(map_tensor)
+            actor_loss = - torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
 
-            # train critic
-            self.critic_optimizer.zero_grad()
-            critic_loss.backward(retain_graph=True)
-            self.critic_optimizer.step()
+            loss = 0.5 * critic_loss + actor_loss - self.entropy_weight * entropy
 
-            # train actor
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor_optimizer.step()
-
-            actor_losses.append(actor_loss.item())
-            critic_losses.append(critic_loss.item())
+            losses.append(loss.item())
 
         self.piece_states, self.map_states, self.actions, self.rewards = [], [], [], []
         self.values, self.masks, self.log_probs = [], [], []
 
-        actor_loss = sum(actor_losses) / len(actor_losses)
-        critic_loss = sum(critic_losses) / len(critic_losses)
+        mean_loss = sum(losses) / len(losses)
 
         wandb.log({
-            "actor_loss": actor_loss,
-            "critic_loss": critic_loss
+            "mean_loss": mean_loss
         })
 
-        return actor_loss, critic_loss
+        return mean_loss
 
     def extend_replay_data(self, agent: LuxPPOAgent):
         """Copy the replay data from the given agent
@@ -390,25 +344,21 @@ class LuxPPOAgent(LuxAgent):
         self.log_probs.extend(agent.log_probs)
 
     def load(self, path):
-        self.actor = PieceActor(**self.actor_config)
-        self.critic = Critic(**self.critic_config)
+        self.actor_critic = ActorCritic(**self.model_config)
 
         checkpoint = torch.load(path)
         self.learning_rate = checkpoint["learning_rate"]
         self.gamma = checkpoint["gamma"]
         self.tau = checkpoint["tau"]
         self.batch_size = checkpoint["batch_size"]
-        self.epsilon = checkpoint["epsilon"]
-        self.epochs = checkpoint["epoch"]
+        self.clip_param = checkpoint["clip_param"]
+        self.epochs = checkpoint["epochs"]
         self.entropy_weight = checkpoint["entropy_weight"]
 
-        self.critic.load_state_dict(checkpoint["critic_state_dict"])
-        self.actor.load_state_dict(checkpoint["actor_state_dict"])
-        self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
-        self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
+        self.actor_critic.load_state_dict(checkpoint["actor_critic_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        self.critic.to(self.device)
-        self.actor.to(self.device)
+        self.actor_critic.to(self.device)
 
     def save(self, target="models", name=None):
         if name is not None:
@@ -420,12 +370,10 @@ class LuxPPOAgent(LuxAgent):
             "gamma": self.gamma,
             "tau": self.tau,
             "batch_size": self.batch_size,
-            "epsilon": self.epsilon,
-            "epoch": self.epochs,
+            "clip_param": self.clip_param,
+            "epochs": self.epochs,
             "entropy_weight": self.entropy_weight,
-            "critic_state_dict": self.critic.to('cpu').state_dict(),
-            "actor_state_dict": self.actor.to('cpu').state_dict(),
-            "critic_optimizer_state_dict": self.critic_optimizer.state_dict(),
-            "actor_optimizer_state_dict": self.actor_optimizer.state_dict(),
+            "actor_critic_state_dict": self.actor_critic.to('cpu').state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
         },
             target)

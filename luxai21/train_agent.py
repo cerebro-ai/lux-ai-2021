@@ -157,8 +157,7 @@ def train(config=None):
             agent1.save()
 
         # transfer agent1 model to agent2
-        agent2.critic = copy.deepcopy(agent1.critic)
-        agent2.actor = copy.deepcopy(agent1.actor)
+        agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
 
 
 if __name__ == '__main__':
