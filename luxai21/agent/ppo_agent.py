@@ -63,9 +63,10 @@ def ppo_iter(
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, num_actions, policy_hidden_dim, value_hidden_dim, with_meta_node, embedding):
+    def __init__(self, num_actions, policy_hidden_dim, value_hidden_dim, with_meta_node, embedding, device):
         super(ActorCritic, self).__init__()
 
+        self.device = device
         self.with_meta_node = with_meta_node
 
         self.embedding_model = MapEmbeddingTower(
@@ -152,7 +153,7 @@ class ActorCritic(nn.Module):
         if map_size_x in self.edge_index_cache:
             edge_index = self.edge_index_cache[map_size_x]
         else:
-            edge_index = get_board_edge_index(map_size_x, map_size_y, self.with_meta_node)
+            edge_index = get_board_edge_index(map_size_x, map_size_y, self.with_meta_node).to(self.device)
             self.edge_index_cache[map_size_x] = edge_index
 
         x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
@@ -210,7 +211,7 @@ class LuxPPOAgent(LuxAgent):
         self.piece_dim = 1
         self.map_size = None
 
-        self.actor_critic = ActorCritic(**model).to(self.device)
+        self.actor_critic = ActorCritic(**model, device=self.device).to(self.device)
 
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
@@ -344,7 +345,7 @@ class LuxPPOAgent(LuxAgent):
         self.log_probs.extend(agent.log_probs)
 
     def load(self, path):
-        self.actor_critic = ActorCritic(**self.model_config)
+        self.actor_critic = ActorCritic(**self.model_config, device=self.device)
 
         checkpoint = torch.load(path)
         self.learning_rate = checkpoint["learning_rate"]
