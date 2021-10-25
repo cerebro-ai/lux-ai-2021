@@ -118,7 +118,7 @@ class ActorCritic(nn.Module):
         p_type_encoding = nn.functional.one_hot(p_type, 3).squeeze(1)
         batches = map_emb_flat.size()[0]
 
-        j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1)
+        j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1).to(self.device)
         j = torch.sum(pos * j_h, 1).long()
         indices = j[..., None, None].expand(-1, 1, map_emb_flat.size(2))
         cell_state = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
