@@ -237,8 +237,8 @@ class LuxPPOAgent(LuxAgent):
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
                 continue
-            piece_tensor = piece_to_tensor(piece)
-            _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
+            piece_tensor = piece_to_tensor(piece).to(self.device)
+            _map = torch.FloatTensor(observation["_map"]).unsqueeze(0).to(self.device)
             action = self.select_action(_map, piece_tensor)
             actions[piece_id] = int(action)
         self.last_returned_actions_length = len(actions.keys())
