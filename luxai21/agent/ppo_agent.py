@@ -281,7 +281,7 @@ class LuxPPOAgent(LuxAgent):
         _map_emb = self.actor_critic.embed_map(_map)
         next_value = self.actor_critic.value(_map_emb)
 
-        returns = compute_gae(next_value,
+        returns = compute_gae(next_value.cpu(),
                               self.rewards,
                               self.masks,
                               self.values,
