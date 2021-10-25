@@ -20,9 +20,9 @@ setup(
         "stable_baselines3",
         "pyyaml",
         "tensorboard",
-        "pettingzoo"
-        "loguru"
-        "tqdm"
+        "pettingzoo",
+        "loguru",
+        "tqdm",
         #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
     package_data={'luxai21': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
