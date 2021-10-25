@@ -71,7 +71,7 @@ class ActorCritic(nn.Module):
 
         self.embedding_model = MapEmbeddingTower(
             **embedding
-        )
+        ).to(device)
 
         self.policy_head_network = nn.Sequential(
             nn.Linear(in_features=embedding["output_dim"] + 3,
@@ -82,7 +82,7 @@ class ActorCritic(nn.Module):
             nn.ELU(),
             nn.Linear(in_features=policy_hidden_dim,
                       out_features=num_actions)
-        )
+        ).to(device)
 
         self.value_head_network = nn.Sequential(
             nn.Linear(in_features=self.embedding_model.output_dim,
@@ -94,7 +94,7 @@ class ActorCritic(nn.Module):
             nn.Linear(in_features=value_hidden_dim,
                       out_features=1),
             nn.Tanh()
-        )
+        ).to(device)
 
         self.edge_index_cache = {}
 
@@ -156,7 +156,8 @@ class ActorCritic(nn.Module):
             edge_index = get_board_edge_index(map_size_x, map_size_y, self.with_meta_node).to(self.device)
             self.edge_index_cache[map_size_x] = edge_index
 
-        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
+        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index.to(self.device))
+        print(f"x: {x.device}, large_edge: {large_edge_index.device}")
         large_map_emb_flat = self.embedding_model(x, large_edge_index)
 
         map_emb_flat, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
