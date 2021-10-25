@@ -157,7 +157,6 @@ class ActorCritic(nn.Module):
             self.edge_index_cache[map_size_x] = edge_index
 
         x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index.to(self.device))
-        print(f"x: {x.device}, large_edge: {large_edge_index.device}")
         large_map_emb_flat = self.embedding_model(x, large_edge_index)
 
         map_emb_flat, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
