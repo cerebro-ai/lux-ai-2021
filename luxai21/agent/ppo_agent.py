@@ -114,7 +114,7 @@ class ActorCritic(nn.Module):
     def get_action(self, map_emb_flat, piece_tensor):
         p_type, pos, action_mask = split_piece_tensor(piece_tensor)
 
-        p_type_encoding = nn.functional.one_hot(p_type.squeeze(0), 3)
+        p_type_encoding = nn.functional.one_hot(p_type, 3).squeeze(1)
         batches = map_emb_flat.size()[0]
 
         j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1)
@@ -304,9 +304,9 @@ class LuxPPOAgent(LuxAgent):
         ):
             action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             entropy = dist.entropy().mean()
-            new_log_probs = dist.log_prob(action)
+            new_log_prob = dist.log_prob(action)
 
-            ratio = (new_log_probs - log_probs).exp()
+            ratio = (new_log_prob - old_log_prob).exp()
             surr1 = ratio * advantage
             surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * advantage
 
