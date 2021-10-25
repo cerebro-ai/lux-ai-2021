@@ -51,6 +51,7 @@ def ppo_iter(
         log_probs: torch.Tensor,
         returns: torch.Tensor,
         advantages: torch.Tensor,
+        device
 ):
     """Yield mini-batches."""
     rollout_length = map_states.size()[0]
@@ -58,8 +59,13 @@ def ppo_iter(
     for _ in range(epoch):
         for _ in range(rollout_length // batch_size):
             rand_ids = np.random.choice(rollout_length, batch_size)
-            yield map_states[rand_ids, :], piece_states[rand_ids, :], actions[rand_ids], values[rand_ids], log_probs[
-                rand_ids], returns[rand_ids], advantages[rand_ids]
+            yield map_states[rand_ids, :].to(device), \
+                  piece_states[rand_ids, :].to(device), \
+                  actions[rand_ids].to(device), \
+                  values[rand_ids].to(device), \
+                  log_probs[rand_ids].to(device), \
+                  returns[rand_ids].to(device), \
+                  advantages[rand_ids].to(device)
 
 
 class ActorCritic(nn.Module):
@@ -260,11 +266,11 @@ class LuxPPOAgent(LuxAgent):
 
         if not self.is_test:
             # in training mode
-            self.map_states.append(map_tensor)
-            self.piece_states.append(piece_tensor)
-            self.actions.append(torch.unsqueeze(selected_action, 0))
-            self.values.append(value)
-            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
+            self.map_states.append(map_tensor.cpu())
+            self.piece_states.append(piece_tensor.cpu())
+            self.actions.append(torch.unsqueeze(selected_action, 0).cpu())
+            self.values.append(value.cpu())
+            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).cpu())
 
         return selected_action.cpu().detach().numpy()
 
@@ -301,7 +307,8 @@ class LuxPPOAgent(LuxAgent):
                 values=values,
                 log_probs=log_probs,
                 returns=returns,
-                advantages=advantages
+                advantages=advantages,
+                device=self.device
         ):
             action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             entropy = dist.entropy().mean()
