@@ -264,7 +264,7 @@ class LuxPPOAgent(LuxAgent):
             self.piece_states.append(piece_tensor)
             self.actions.append(torch.unsqueeze(selected_action, 0))
             self.values.append(value)
-            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0))
+            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
 
         return selected_action.cpu().detach().numpy()
 
