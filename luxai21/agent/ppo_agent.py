@@ -253,8 +253,8 @@ class LuxPPOAgent(LuxAgent):
 
     def receive_reward(self, reward: float, done: int):
         length = self.last_returned_actions_length
-        rewards = torch.FloatTensor([reward / length]).repeat(length).to(self.device)
-        masks = torch.FloatTensor([1 - done]).repeat(length).to(self.device)
+        rewards = torch.FloatTensor([reward / length]).repeat(length).cpu()
+        masks = torch.FloatTensor([1 - done]).repeat(length).cpu()
         self.masks.extend(masks)
         self.rewards.extend(rewards)
 
@@ -279,9 +279,9 @@ class LuxPPOAgent(LuxAgent):
 
         _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
         _map_emb = self.actor_critic.embed_map(_map)
-        next_value = self.actor_critic.value(_map_emb)
+        next_value = self.actor_critic.value(_map_emb).cpu()
 
-        returns = compute_gae(next_value.cpu(),
+        returns = compute_gae(next_value,
                               self.rewards,
                               self.masks,
                               self.values,
