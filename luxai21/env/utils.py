@@ -111,7 +111,7 @@ def generate_map_state_matrix(game_state: Game):
         :param game_state: current lux.game.Game object
         :return: np.ndarray containing the encoded map state
         """
-    map_state = np.zeros((game_state.map.height, game_state.map.width, 19))
+    map_state = np.zeros((game_state.map.height, game_state.map.width, 21))
     fuel_normalizer = 1000
 
     resource_tiles = find_all_resources(game_state)
@@ -212,6 +212,10 @@ def generate_map_state_matrix(game_state: Game):
             cell = game_state.map.get_cell_by_pos(Position(x, y))
             map_state[cell.pos.x][cell.pos.y][17] = cell.road / GAME_CONSTANTS["PARAMETERS"]["MAX_ROAD"]
             map_state[cell.pos.x][cell.pos.y][18] = 1  # is map cell
+
+            # DIRECTIONAL EMBEDDING
+            map_state[cell.pos.x][cell.pos.y][19] = cell.pos.x / (game_state.map.width - 1)
+            map_state[cell.pos.x][cell.pos.y][20] = cell.pos.y / (game_state.map.height - 1)
 
     return map_state
 

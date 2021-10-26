@@ -62,8 +62,7 @@ def train(config=None):
 
     losses = {
         player: {
-            "actor_losses": [],
-            "critic_losses": []
+            "mean_losses": []
         } for player in agents.keys()
     }
 
@@ -141,9 +140,8 @@ def train(config=None):
 
         # transfer replay data from agent1 to agent2
         agent1.extend_replay_data(agent2)
-        actor_loss, critic_loss = agent1.update_model(obs["player_0"])
-        losses["player_0"]["actor_losses"].append(actor_loss)
-        losses["player_0"]["critic_losses"].append(critic_loss)
+        mean_loss = agent1.update_model(obs["player_0"])
+        losses["player_0"]["mean_losses"].append(mean_loss)
 
         for agent in agents.values():
             agent.match_over_callback()
@@ -157,8 +155,7 @@ def train(config=None):
             agent1.save()
 
         # transfer agent1 model to agent2
-        agent2.critic = copy.deepcopy(agent1.critic)
-        agent2.actor = copy.deepcopy(agent1.actor)
+        agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
 
 
 if __name__ == '__main__':

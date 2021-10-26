@@ -46,10 +46,11 @@ agent:
   batch_size: 512
   entropy_weight: 0.005
   epochs: 2
-  epsilon: 0.1
+  clip_param: 0.3
   gamma: 0.985
   learning_rate: 0.001
   tau: 0.8
+  use_meta_node: true  # include a meta node that is connected to every cell
 
 env:
   allow_carts: false
@@ -131,9 +132,10 @@ config = {
         "gamma": 0.985,  # discount of future rewards
         "tau": 0.8,
         "batch_size": 512,
-        "epsilon": 0.1,  # PPO clipping range
+        "clip_param": 0.3,  # PPO clipping range
         "epochs": 2,
         "entropy_weight": 0.005
+        "use_meta_node": True  # include a meta node that is connected to every cell
     },
     "reward": {
         "TURN": 0.01,  # base reward every turn
