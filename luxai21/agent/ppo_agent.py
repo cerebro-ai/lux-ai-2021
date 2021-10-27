@@ -157,12 +157,13 @@ class ActorCritic(nn.Module):
 
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
-            edge_index = self.edge_index_cache[map_size_x]
+            edge_index = self.edge_index_cache[map_size_x].to(self.device)
         else:
             edge_index = get_board_edge_index(map_size_x, map_size_y, self.with_meta_node).to(self.device)
             self.edge_index_cache[map_size_x] = edge_index
 
-        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index.to(self.device))
+        x, large_edge_index, _ = batches_to_large_graph(map_flat, edge_index)
+        x, large_edge_index = x.to(self.device), large_edge_index.to(self.device)
         large_map_emb_flat = self.embedding_model(x, large_edge_index)
 
         map_emb_flat, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
@@ -279,11 +280,12 @@ class LuxPPOAgent(LuxAgent):
     def update_model(self, last_obs):
         device = self.device
 
-        _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
-        _map_emb = self.actor_critic.embed_map(_map)
-        next_value = self.actor_critic.value(_map_emb)
-
         with torch.no_grad():
+
+            _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
+            _map_emb = self.actor_critic.embed_map(_map)
+            next_value = self.actor_critic.value(_map_emb)
+
             returns = compute_gae(next_value,
                                   self.rewards,
                                   self.masks,

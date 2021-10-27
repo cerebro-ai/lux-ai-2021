@@ -70,7 +70,6 @@ def train(config=None):
     update_step = 0
     total_games = 0
     best_citytiles_end = 10
-    best_model = None
     obs = None
 
     while total_games < config["training"]["max_games"]:
@@ -101,12 +100,12 @@ def train(config=None):
                     # Game env errored
                     log.error(e)
                     agent1.receive_reward(0, 1)
-                    agent2.receive_reward(0, 1)
+                    # agent2.receive_reward(0, 1)
                     break
 
                 # 3. pass reward to agents
                 agent1.receive_reward(rewards["player_0"], dones["player_0"])
-                agent2.receive_reward(rewards["player_1"], dones["player_1"])
+                # agent2.receive_reward(rewards["player_1"], dones["player_1"])
 
                 # 4. check if game is over
                 done = env.game_state.match_over()
@@ -136,14 +135,8 @@ def train(config=None):
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
             agent1.save(total_games)
 
-
-        # transfer replay data from agent1 to agent2
-        # agent1.extend_replay_data(agent2)
         mean_loss = agent1.update_model(obs["player_0"])
         losses["player_0"]["mean_losses"].append(mean_loss)
-
-        for agent in agents.values():
-            agent.match_over_callback()
 
         if (update_step % config["wandb"]["replay_every_x_updates"]) == 0 and update_step != 0:
             log.debug("Save replay")
@@ -157,7 +150,6 @@ def train(config=None):
 
         # transfer agent1 model to agent2
         agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
-
 
         update_step += 1
 
