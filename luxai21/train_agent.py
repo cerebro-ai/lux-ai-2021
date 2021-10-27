@@ -49,6 +49,7 @@ def train(config=None):
 
     agent1 = LuxPPOAgent(**config["agent"])
     agent2 = LuxPPOAgent(**config["agent"])
+    agent2.is_test = True
 
     agents = {
         "player_0": agent1,
