@@ -42,7 +42,7 @@ def compute_gae(
 
 
 def ppo_iter(
-        epoch: int,
+        epochs: int,
         batch_size: int,
         map_states: Tensor,
         piece_states: Tensor,
@@ -50,22 +50,21 @@ def ppo_iter(
         values: torch.Tensor,
         log_probs: torch.Tensor,
         returns: torch.Tensor,
-        advantages: torch.Tensor,
-        device
+        advantages: torch.Tensor
 ):
     """Yield mini-batches."""
     rollout_length = map_states.size()[0]
 
-    for _ in range(epoch):
+    for _ in range(epochs):
         for _ in range(rollout_length // batch_size):
             rand_ids = np.random.choice(rollout_length, batch_size)
-            yield map_states[rand_ids, :].to(device), \
-                  piece_states[rand_ids, :].to(device), \
-                  actions[rand_ids].to(device), \
-                  values[rand_ids].to(device), \
-                  log_probs[rand_ids].to(device), \
-                  returns[rand_ids].to(device), \
-                  advantages[rand_ids].to(device)
+            yield map_states[rand_ids, :], \
+                  piece_states[rand_ids, :], \
+                  actions[rand_ids], \
+                  values[rand_ids], \
+                  log_probs[rand_ids], \
+                  returns[rand_ids], \
+                  advantages[rand_ids]
 
 
 class ActorCritic(nn.Module):
@@ -241,11 +240,11 @@ class LuxPPOAgent(LuxAgent):
     def generate_actions(self, observation: dict):
 
         actions = {}
+        _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
                 continue
-            piece_tensor = piece_to_tensor(piece).to(self.device)
-            _map = torch.FloatTensor(observation["_map"]).unsqueeze(0).to(self.device)
+            piece_tensor = piece_to_tensor(piece)
             action = self.select_action(_map, piece_tensor)
             actions[piece_id] = int(action)
         self.last_returned_actions_length = len(actions.keys())
@@ -253,24 +252,26 @@ class LuxPPOAgent(LuxAgent):
 
     def receive_reward(self, reward: float, done: int):
         length = self.last_returned_actions_length
-        rewards = torch.FloatTensor([reward / length]).repeat(length).to(self.device)
-        masks = torch.FloatTensor([1 - done]).repeat(length).to(self.device)
+        rewards = torch.FloatTensor([reward / length] * length).to(self.device)
+        masks = torch.FloatTensor([1 - done] * length).to(self.device)
         self.masks.extend(masks)
         self.rewards.extend(rewards)
 
     def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
         """Select a action for from the map and piece
         """
-        action, dist, value = self.actor_critic(map_tensor, piece_tensor)
-        selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
+        map_tensor, piece_tensor = map_tensor.to(self.device), piece_tensor.to(self.device)
+        with torch.no_grad():
+            action, dist, value = self.actor_critic(map_tensor, piece_tensor)
+            selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
 
         if not self.is_test:
             # in training mode
-            self.map_states.append(map_tensor.cpu())
-            self.piece_states.append(piece_tensor.cpu())
-            self.actions.append(torch.unsqueeze(selected_action, 0).cpu())
-            self.values.append(value.cpu())
-            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).cpu())
+            self.map_states.append(map_tensor.detach())
+            self.piece_states.append(piece_tensor.detach())
+            self.actions.append(torch.unsqueeze(selected_action, 0).detach())
+            self.values.append(value.detach())
+            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
 
         return selected_action.cpu().detach().numpy()
 
@@ -281,25 +282,26 @@ class LuxPPOAgent(LuxAgent):
         _map_emb = self.actor_critic.embed_map(_map)
         next_value = self.actor_critic.value(_map_emb)
 
-        returns = compute_gae(next_value.cpu(),
-                              self.rewards,
-                              self.masks,
-                              self.values,
-                              self.gamma,
-                              self.tau)
+        with torch.no_grad():
+            returns = compute_gae(next_value,
+                                  self.rewards,
+                                  self.masks,
+                                  self.values,
+                                  self.gamma,
+                                  self.tau)
 
-        map_states = torch.cat(self.map_states)
-        piece_states = torch.cat(self.piece_states)
-        actions = torch.cat(self.actions)
-        returns = torch.cat(returns).detach()
-        values = torch.cat(self.values).detach()
-        log_probs = torch.cat(self.log_probs).detach()
-        advantages = returns - values
+            map_states = torch.cat(self.map_states)
+            piece_states = torch.cat(self.piece_states)
+            actions = torch.cat(self.actions)
+            returns = torch.cat(returns).detach()
+            values = torch.cat(self.values).detach()
+            log_probs = torch.cat(self.log_probs).detach()
+            advantages = returns - values
 
         losses = []
 
-        for map_tensor, piece_tensor, action, old_value, old_log_prob, return_, advantage in ppo_iter(
-                epoch=self.epochs,
+        for map_tensor, piece_tensor, _, old_value, old_log_prob, return_, advantage in ppo_iter(
+                epochs=self.epochs,
                 batch_size=self.batch_size,
                 map_states=map_states,
                 piece_states=piece_states,
@@ -308,7 +310,6 @@ class LuxPPOAgent(LuxAgent):
                 log_probs=log_probs,
                 returns=returns,
                 advantages=advantages,
-                device=self.device
         ):
             action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             entropy = dist.entropy().mean()
@@ -327,7 +328,7 @@ class LuxPPOAgent(LuxAgent):
             loss.backward()
             self.optimizer.step()
 
-            losses.append(loss.item())
+            losses.append(loss.detach().item())
 
         self.piece_states, self.map_states, self.actions, self.rewards = [], [], [], []
         self.values, self.masks, self.log_probs = [], [], []

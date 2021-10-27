@@ -49,6 +49,7 @@ def train(config=None):
 
     agent1 = LuxPPOAgent(**config["agent"])
     agent2 = LuxPPOAgent(**config["agent"])
+    agent2.is_test = True
 
     agents = {
         "player_0": agent1,
@@ -79,7 +80,7 @@ def train(config=None):
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
         # times two since we use also the replay data of agent2
-        while len(agent1.rewards) * 2 < config["training"]["max_replay_buffer_size"]:
+        while len(agent1.rewards) < config["training"]["max_replay_buffer_size"]:
             obs = env.reset()
             done = env.game_state.match_over()
             log.debug(f"Start game {games}")
@@ -139,7 +140,7 @@ def train(config=None):
         update_step += 1
 
         # transfer replay data from agent1 to agent2
-        agent1.extend_replay_data(agent2)
+        # agent1.extend_replay_data(agent2)
         mean_loss = agent1.update_model(obs["player_0"])
         losses["player_0"]["mean_losses"].append(mean_loss)
 
