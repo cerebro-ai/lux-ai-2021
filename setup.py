@@ -25,7 +25,8 @@ setup(
         "tqdm",
         #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
-    package_data={'luxai21': ['luxai21/env/render_index.html']}
+    package_data={'luxai21': ['luxai21/env/render_index.html']},
+    include_package_data=True
 )
 
 
