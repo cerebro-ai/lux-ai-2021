@@ -70,7 +70,6 @@ def train(config=None):
     update_step = 0
     total_games = 0
     best_citytiles_end = 10
-    count_updates = 0
     best_model = None
     obs = None
 
@@ -134,10 +133,9 @@ def train(config=None):
         if mean_citytiles_end > best_citytiles_end:
             agent1.save(name='most_citytiles_end')
 
-        if update_step % config["training"]["save_checkpoint_every_x_updates"] == 0 and update_step != 0:
-            agent1.save()
+        if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
+            agent1.save(total_games)
 
-        update_step += 1
 
         # transfer replay data from agent1 to agent2
         # agent1.extend_replay_data(agent2)
@@ -147,16 +145,21 @@ def train(config=None):
         for agent in agents.values():
             agent.match_over_callback()
 
-        if count_updates % config["wandb"]["replay_every_x_updates"] == 0 and count_updates != 0:
+        if (update_step % config["wandb"]["replay_every_x_updates"]) == 0 and update_step != 0:
+            log.debug("Save replay")
             wandb.log({
                 f"Replay_step{total_games}": wandb.Html(env.render())
             })
 
         if time.time() - start_time > config["training"]["max_training_time"]:
-            agent1.save()
+            log.debug("Time exceeded 'max_training_time': save model")
+            agent1.save(total_games)
 
         # transfer agent1 model to agent2
         agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
+
+
+        update_step += 1
 
 
 if __name__ == '__main__':

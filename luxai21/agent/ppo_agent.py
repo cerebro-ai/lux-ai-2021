@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
 from typing import List, Deque, Any
 import wandb
 import os
@@ -369,11 +370,10 @@ class LuxPPOAgent(LuxAgent):
 
         self.actor_critic.to(self.device)
 
-    def save(self, target="models", name=None):
-        if name is not None:
-            target = os.path.join(target, f'{name}_complete_PPOmodel_checkpoint')
-        else:
-            target = os.path.join(target, f'complete_PPOmodel_checkpoint_epoch_{self.epochs}')
+    def save(self, games_played: int, target="models"):
+        Path(target).mkdir(exist_ok=True)
+
+        target = Path(target).joinpath(f"PPO_model_game_{games_played}")
         torch.save({
             "learning_rate": self.learning_rate,
             "gamma": self.gamma,
