@@ -384,7 +384,7 @@ class LuxPPOAgent(LuxAgent):
             "clip_param": self.clip_param,
             "epochs": self.epochs,
             "entropy_weight": self.entropy_weight,
-            "actor_critic_state_dict": self.actor_critic.to('cpu').state_dict(),
+            "actor_critic_state_dict": self.actor_critic.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
         },
             target)

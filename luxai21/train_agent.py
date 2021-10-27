@@ -130,9 +130,11 @@ def train(config=None):
             "citytiles_end_mean_episode": mean_citytiles_end
         })
         if mean_citytiles_end > best_citytiles_end:
-            agent1.save(name='most_citytiles_end')
+            log.debug(f"Saving new best model after {total_games} games")
+            agent1.save(total_games)
 
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
+            log.debug(f"Saving model {total_games}")
             agent1.save(total_games)
 
         mean_loss = agent1.update_model(obs["player_0"])
