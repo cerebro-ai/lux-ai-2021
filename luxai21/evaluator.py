@@ -6,8 +6,9 @@ class Evaluator:
         self.num_games = num_games
 
     def get_win_rate(self, opponent):
+        wins = []
         agents = {
-            "player_0": self.agent1,
+            "player_0": self.agent,
             "player_1": opponent
         }
 
@@ -31,3 +32,6 @@ class Evaluator:
 
                 # 4. check if game is over
                 done = self.env.game_state.match_over()
+            wins.append(1 if self.env.game_state.get_winning_team() == 0 else 0)
+
+        return sum(wins) / len(wins)

@@ -4,7 +4,7 @@ from luxai21.agent.lux_agent import LuxAgent
 
 class Stupid_Agent(LuxAgent):
 
-    def __init__(self, learning: dict, model: dict, **kwargs):
+    def __init__(self, **kwargs):
         super(Stupid_Agent, self).__init__()
 
     def generate_actions(self, observation: dict):

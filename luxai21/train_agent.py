@@ -50,16 +50,13 @@ def train(config=None):
         config=config)
 
     agent1 = LuxPPOAgent(**config["agent"])
-    agent2 = Stupid_Agent
+    agent2 = Stupid_Agent()
     agent2_is_ppo = False
 
     agents = {
         "player_0": agent1,
         "player_1": agent2
     }
-
-    for agent in agents.values():
-        agent.is_test = False
 
     env = LuxEnv(config)
     evaluator = Evaluator(env, agent1, num_games=20)
@@ -121,7 +118,7 @@ def train(config=None):
             # GAME ENDS
             citytiles_end = log_and_get_citytiles_game_end(env.game_state)
             wandb.log({
-                "mean_reward": sum(rewards) / len(rewards)
+                "mean_reward": sum(sum_rewards) / len(sum_rewards)
             })
             games += 1
 
@@ -136,8 +133,6 @@ def train(config=None):
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
             agent1.save(total_games)
 
-
-        # transfer replay data from agent1 to agent2
         mean_loss = agent1.update_model(obs["player_0"])
         losses["player_0"]["mean_losses"].append(mean_loss)
 
