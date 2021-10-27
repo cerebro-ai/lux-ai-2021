@@ -13,9 +13,11 @@ from tqdm import tqdm
 from loguru import logger as log
 
 from luxai21.agent.ppo_agent import LuxPPOAgent
+from luxai21.agent.stupid_agent import Stupid_Agent
 from luxai21.env import example_config
 from luxai21.env.lux_env import LuxEnv
 from luxai21.env.utils import log_and_get_citytiles_game_end
+from luxai21.evaluator import Evaluator
 
 
 def set_seed(seed: int):
@@ -48,8 +50,8 @@ def train(config=None):
         config=config)
 
     agent1 = LuxPPOAgent(**config["agent"])
-    agent2 = LuxPPOAgent(**config["agent"])
-    agent2.is_test = True
+    agent2 = Stupid_Agent
+    agent2_is_ppo = False
 
     agents = {
         "player_0": agent1,
@@ -60,6 +62,7 @@ def train(config=None):
         agent.is_test = False
 
     env = LuxEnv(config)
+    evaluator = Evaluator(env, agent1, num_games=20)
 
     losses = {
         player: {
@@ -75,7 +78,6 @@ def train(config=None):
 
     while total_games < config["training"]["max_games"]:
         games = 0
-        citytiles_end = []
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
         # times two since we use also the replay data of agent2
@@ -86,6 +88,7 @@ def train(config=None):
 
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
+            sum_rewards = []
             # GAME TURNS
             while not done:
                 # 1. generate actions
@@ -101,12 +104,11 @@ def train(config=None):
                     # Game env errored
                     log.error(e)
                     agent1.receive_reward(0, 1)
-                    agent2.receive_reward(0, 1)
                     break
 
                 # 3. pass reward to agents
                 agent1.receive_reward(rewards["player_0"], dones["player_0"])
-                agent2.receive_reward(rewards["player_1"], dones["player_1"])
+                sum_rewards.append(rewards["player_0"])
 
                 # 4. check if game is over
                 done = env.game_state.match_over()
@@ -117,7 +119,10 @@ def train(config=None):
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar.close()
             # GAME ENDS
-            citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
+            citytiles_end = log_and_get_citytiles_game_end(env.game_state)
+            wandb.log({
+                "mean_reward": sum(rewards) / len(rewards)
+            })
             games += 1
 
         log.debug(f"Replay buffer full. Games played: {games}")
@@ -125,12 +130,7 @@ def train(config=None):
         total_games += games
         log.debug(f"Total games so far: {total_games}")
 
-        mean_citytiles_end = sum(citytiles_end) / len(citytiles_end)
-
-        wandb.log({
-            "citytiles_end_mean_episode": mean_citytiles_end
-        })
-        if mean_citytiles_end > best_citytiles_end:
+        if citytiles_end > best_citytiles_end:
             agent1.save(name='most_citytiles_end')
 
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
@@ -138,7 +138,6 @@ def train(config=None):
 
 
         # transfer replay data from agent1 to agent2
-        # agent1.extend_replay_data(agent2)
         mean_loss = agent1.update_model(obs["player_0"])
         losses["player_0"]["mean_losses"].append(mean_loss)
 
@@ -156,8 +155,12 @@ def train(config=None):
             agent1.save(total_games)
 
         # transfer agent1 model to agent2
-        agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
-
+        if evaluator.get_win_rate(agent2) > config["training"]["update_opponent_if_win_rate_larger_than_x"]:
+            if not agent2_is_ppo:
+                agent2 = LuxPPOAgent(**config["agent"])
+                agent2.is_test = True
+                agent2_is_ppo = True
+            agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
 
         update_step += 1
 
