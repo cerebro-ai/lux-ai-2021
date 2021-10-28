@@ -155,6 +155,11 @@ class ActorCritic(nn.Module):
 
         map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
 
+        if self.with_meta_node:
+            meta_node = torch.zeros((batches, 1, features))
+            map_flat = torch.cat([map_flat, meta_node], dim=1)
+            assert map_flat.size()[1] == map_size_x*map_size_y+1
+
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
             edge_index = self.edge_index_cache[map_size_x].to(self.device)
@@ -171,7 +176,11 @@ class ActorCritic(nn.Module):
 
     def value(self, map_emb_flat):
         # extract meta node
-        meta_node_state = map_emb_flat[:, -1, :]
+        if self.with_meta_node:
+            meta_node_state = map_emb_flat[:, -1, :]
+        else:
+            # aggregate over all nodes
+            meta_node_state = torch.mean(map_emb_flat, dim=1)
         value = self.value_head_network(meta_node_state)
         return value
 
