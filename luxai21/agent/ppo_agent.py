@@ -156,8 +156,8 @@ class ActorCritic(nn.Module):
         map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
 
         if self.with_meta_node:
-            meta_node = torch.zeros((batches, 1, features))
-            map_flat = torch.cat([map_flat, meta_node], dim=1)
+            meta_node = torch.zeros((batches, 1, features)).to(self.device)
+            map_flat = torch.cat([map_flat, meta_node], dim=1).to(self.device)
 
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
