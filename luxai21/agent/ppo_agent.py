@@ -158,7 +158,6 @@ class ActorCritic(nn.Module):
         if self.with_meta_node:
             meta_node = torch.zeros((batches, 1, features))
             map_flat = torch.cat([map_flat, meta_node], dim=1)
-            assert map_flat.size()[1] == map_size_x*map_size_y+1
 
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
@@ -283,13 +282,13 @@ class LuxPPOAgent(LuxAgent):
             action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
 
-        if not self.is_test:
-            # in training mode
-            self.map_states.append(map_tensor.detach())
-            self.piece_states.append(piece_tensor.detach())
-            self.actions.append(torch.unsqueeze(selected_action, 0).detach())
-            self.values.append(value.detach())
-            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
+            if not self.is_test:
+                # in training mode
+                self.map_states.append(map_tensor.detach())
+                self.piece_states.append(piece_tensor.detach())
+                self.actions.append(torch.unsqueeze(selected_action, 0).detach())
+                self.values.append(value.detach())
+                self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
 
         return selected_action.cpu().detach().numpy()
 
