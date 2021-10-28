@@ -254,8 +254,15 @@ class LuxPPOAgent(LuxAgent):
 
     def receive_reward(self, reward: float, done: int):
         length = self.last_returned_actions_length
-        rewards = torch.FloatTensor([reward / length] * length).to(self.device)
-        masks = torch.FloatTensor([1 - done] * length).to(self.device)
+
+        # only give the last step the reward & mask
+        rewards_list: List[float] = [0] * length
+        rewards_list[-1] = reward
+        dones = [0] * length
+        dones[-1] = done
+
+        rewards = torch.FloatTensor(rewards_list).to(self.device)
+        masks = torch.FloatTensor(dones).to(self.device)
         self.masks.extend(masks)
         self.rewards.extend(rewards)
 
@@ -343,17 +350,6 @@ class LuxPPOAgent(LuxAgent):
         })
 
         return mean_loss
-
-    def extend_replay_data(self, agent: LuxPPOAgent):
-        """Copy the replay data from the given agent
-        """
-        self.piece_states.extend(agent.piece_states)
-        self.map_states.extend(agent.map_states)
-        self.actions.extend(agent.actions)
-        self.rewards.extend(agent.rewards)
-        self.values.extend(agent.values)
-        self.masks.extend(agent.masks)
-        self.log_probs.extend(agent.log_probs)
 
     def load(self, path):
         self.actor_critic = ActorCritic(**self.model_config, device=self.device)
