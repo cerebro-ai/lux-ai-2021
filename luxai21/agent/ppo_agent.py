@@ -239,7 +239,9 @@ class LuxPPOAgent(LuxAgent):
         self.masks: List[torch.Tensor] = []
         self.log_probs: List[torch.Tensor] = []
 
+        # rewards
         self.last_returned_actions_length = 0
+        self.last_actions = []
 
         # total steps count
         self.total_step = 1
@@ -247,29 +249,50 @@ class LuxPPOAgent(LuxAgent):
         # mode: train / test
         self.is_test = False
 
+        self.reward_map = {
+            7: 1,  # spawn city
+            8: 0,  # pillage
+            10: 1,  # spawn worker
+            11: 0,  # spawn cart
+            12: 0.1,  # research
+        }
+        # normalize the rewards to sum to 1
+        total_reward = sum([r for r in self.reward_map.values()])
+        for key, reward in self.reward_map.items():
+            self.reward_map[key] = reward / total_reward
+
     def generate_actions(self, observation: dict):
 
         actions = {}
         _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
+        self.last_actions = []
+
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
                 continue
             piece_tensor = piece_to_tensor(piece)
             action = self.select_action(_map, piece_tensor)
             actions[piece_id] = int(action)
+            self.last_actions.append(int(action))
+
         self.last_returned_actions_length = len(actions.keys())
         return actions
 
-    def receive_reward(self, reward: float, done: int):
+    def receive_reward(self, turn_reward: float, done: int):
         length = self.last_returned_actions_length
 
-        # only give the last step the reward & mask
-        rewards_list: List[float] = [0] * length
-        rewards_list[-1] = reward
+        reward_list = []
+        for action in self.last_actions:
+            if action in self.reward_map:
+                reward_list.append(self.reward_map[action])
+            else:
+                reward_list.append(0)
+
+        # rewards_list[-1] = reward
         dones = [0] * length
         dones[-1] = done
 
-        rewards = torch.FloatTensor(rewards_list).to(self.device)
+        rewards = torch.FloatTensor(reward_list).to(self.device)
         masks = torch.FloatTensor(dones).to(self.device)
         self.masks.extend(masks)
         self.rewards.extend(rewards)
@@ -288,7 +311,8 @@ class LuxPPOAgent(LuxAgent):
                 self.piece_states.append(piece_tensor.detach())
                 self.actions.append(torch.unsqueeze(selected_action, 0).detach())
                 self.values.append(value.detach())
-                self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
+                self.log_probs.append(
+                    torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
 
         return selected_action.cpu().detach().numpy()
 
@@ -296,7 +320,6 @@ class LuxPPOAgent(LuxAgent):
         device = self.device
 
         with torch.no_grad():
-
             _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
             _map_emb = self.actor_critic.embed_map(_map)
             next_value = self.actor_critic.value(_map_emb)
