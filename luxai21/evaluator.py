@@ -3,6 +3,7 @@ class Evaluator:
     def __init__(self, env, agent, num_games):
         self.env = env
         self.agent = agent
+        self.agent.is_test = True
         self.num_games = num_games
 
     def get_win_rate(self, opponent):
@@ -34,4 +35,5 @@ class Evaluator:
                 done = self.env.game_state.match_over()
             wins.append(1 if self.env.game_state.get_winning_team() == 0 else 0)
 
+        self.agent.is_test = False
         return sum(wins) / len(wins)

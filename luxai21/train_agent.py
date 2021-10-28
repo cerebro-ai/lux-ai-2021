@@ -59,7 +59,7 @@ def train(config=None):
     }
 
     env = LuxEnv(config)
-    evaluator = Evaluator(env, agent1, num_games=20)
+    evaluator = Evaluator(env, agent1, num_games=1)
 
     losses = {
         player: {
