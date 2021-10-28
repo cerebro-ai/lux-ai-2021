@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import deque
 from pathlib import Path
 from typing import List, Deque, Any
@@ -228,6 +229,9 @@ class LuxPPOAgent(LuxAgent):
 
         self.actor_critic = ActorCritic(**model, device=self.device).to(self.device)
 
+        logging.warning(
+            f"ActorCritic Params: {sum(p.numel() for p in self.actor_critic.parameters() if p.requires_grad)}")
+
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
         # memory for training
@@ -265,6 +269,13 @@ class LuxPPOAgent(LuxAgent):
 
         actions = {}
         _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
+
+        # cat the game state to the end of every map node
+        map_size = _map.size()[1]
+        _game_state = torch.FloatTensor(observation["_game_state"])
+        game_state = _game_state.repeat(1, map_size, map_size, 1)
+
+        _map = torch.cat([_map, game_state], dim=3)
         self.last_actions = []
 
         for piece_id, piece in observation.items():
@@ -321,6 +332,11 @@ class LuxPPOAgent(LuxAgent):
 
         with torch.no_grad():
             _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
+            map_size = _map.size()[1]
+            _game_state = torch.FloatTensor(last_obs["_game_state"]).to(device)
+            game_state = _game_state.repeat(1, map_size, map_size, 1)
+            _map = torch.cat([_map, game_state], dim=3)
+
             _map_emb = self.actor_critic.embed_map(_map)
             next_value = self.actor_critic.value(_map_emb)
 

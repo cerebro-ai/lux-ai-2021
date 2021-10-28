@@ -250,9 +250,9 @@ def generate_game_state_matrix(game_state: Game, team: int):
         team: player_id, 0 or 1
     """
 
-    """Get game state as numpy (1x5) array
+    """Get game state as numpy (1x26) array
         :param game_state:
-        :return: Numpy array of shape (1x5)
+        :return: Numpy array of shape (1x26)
         """
     city_normalizer = 10
     citytiles_normalizer = 100
@@ -300,6 +300,7 @@ def generate_game_state_matrix(game_state: Game, team: int):
     enemy_coal = game_state.stats['teamStats'][(team + 1) % 2]['resourcesCollected']['coal'] / coal_normalizer
     enemy_uranium = game_state.stats['teamStats'][(team + 1) % 2]['resourcesCollected']['uranium'] / uranium_normalizer
 
+    # 26 items
     return np.array(
         [game_progress, days_until_night, is_night, night_days_left, team_cities, enemy_cities, team_citytiles,
          enemy_citytiles, team_workers, enemy_workers, team_carts, enemy_carts, team_total_fuel,
