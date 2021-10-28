@@ -75,6 +75,7 @@ def train(config=None):
     while total_games < config["training"]["max_games"]:
         games = 0
         citytiles_end = []
+        game_rewards = []
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
         # times two since we use also the replay data of agent2
@@ -83,8 +84,11 @@ def train(config=None):
             done = env.game_state.match_over()
             log.debug(f"Start game {games}")
 
+            total_game_reward = 0
+
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
+
             # GAME TURNS
             while not done:
                 # 1. generate actions
@@ -103,9 +107,9 @@ def train(config=None):
                     # agent2.receive_reward(0, 1)
                     break
 
-                # 3. pass reward to agents
+                # 3. pass reward to agent
                 agent1.receive_reward(rewards["player_0"], dones["player_0"])
-                # agent2.receive_reward(rewards["player_1"], dones["player_1"])
+                total_game_reward += rewards["player_0"]
 
                 # 4. check if game is over
                 done = env.game_state.match_over()
@@ -115,16 +119,22 @@ def train(config=None):
 
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar.close()
+
+            game_rewards.append(total_game_reward)
             # GAME ENDS
             citytiles_end.append(log_and_get_citytiles_game_end(env.game_state))
             games += 1
 
-        log.debug(f"Replay buffer full. Games played: {games}")
-
         total_games += games
-        log.debug(f"Total games so far: {total_games}")
 
         mean_citytiles_end = sum(citytiles_end) / len(citytiles_end)
+
+        log.debug(f"Replay buffer full. Games played: {games}")
+        log.debug(f"Total games so far: {total_games}")
+
+        wandb.log({
+            "mean_total_reward": sum(game_rewards) / len(game_rewards)
+        })
 
         wandb.log({
             "citytiles_end_mean_episode": mean_citytiles_end
@@ -150,8 +160,9 @@ def train(config=None):
             log.debug("Time exceeded 'max_training_time': save model")
             agent1.save(total_games)
 
-        # transfer agent1 model to agent2
-        agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
+        # update every 10 update steps
+        if (update_step % 10) == 0:
+            agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
 
         update_step += 1
 
