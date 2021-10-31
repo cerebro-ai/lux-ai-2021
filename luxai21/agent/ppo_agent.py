@@ -292,21 +292,19 @@ class LuxPPOAgent(LuxAgent):
     def receive_reward(self, turn_reward: float, done: int):
         length = self.last_returned_actions_length
 
-        reward_list = []
-        for action in self.last_actions:
-            if action in self.reward_map:
-                reward_list.append(self.reward_map[action])
-            else:
-                reward_list.append(0)
+        if self.learning_config["reward_distribution"] == "uniform":
+            reward_list = [turn_reward/length]*length
+        elif self.learning_config["reward_distribution"] == "last":
+            reward_list = [0.0] * (length-1)
+            reward_list.append(turn_reward)
 
-        # rewards_list[-1] = reward
         dones = [0] * length
-        dones[-1] = done
+        dones[-1] = int(done)
 
         rewards = torch.FloatTensor(reward_list).to(self.device)
         masks = torch.FloatTensor(dones).to(self.device)
-        self.masks.extend(masks)
         self.rewards.extend(rewards)
+        self.masks.extend(masks)
 
     def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
         """Select a action for from the map and piece
