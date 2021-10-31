@@ -59,7 +59,7 @@ def train(config=None):
     }
 
     env = LuxEnv(config)
-    evaluator = Evaluator(env, agent1, num_games=1)
+    evaluator = Evaluator(agent1, config, num_games=20)
 
     losses = {
         player: {
@@ -72,6 +72,7 @@ def train(config=None):
     best_citytiles_end = 10
     best_model = None
     obs = None
+    opponent_updates = 0
 
     while total_games < config["training"]["max_games"]:
         games = 0
@@ -151,11 +152,16 @@ def train(config=None):
 
         # transfer agent1 model to agent2
         if evaluator.get_win_rate(agent2) > config["training"]["update_opponent_if_win_rate_larger_than_x"]:
+            log.info("Update opponent")
+            opponent_updates += 1
             if not agent2_is_ppo:
                 agent2 = LuxPPOAgent(**config["agent"])
                 agent2.is_test = True
                 agent2_is_ppo = True
             agent2.actor_critic = copy.deepcopy(agent1.actor_critic)
+        wandb.log({
+            'opponent_updates': opponent_updates
+        })
 
         update_step += 1
 
