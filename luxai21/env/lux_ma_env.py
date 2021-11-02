@@ -262,13 +262,15 @@ class LuxMAEnv(ParallelEnv):
         For every agent for which we received an action,
         but it is not any more in observation set done to true
         """
-        dones = {piece_id: 0 for piece_id in observations.keys()}
+        dones = {piece_id: False for piece_id in observations.keys()}
         for piece_id in actions.keys():
             if piece_id not in dones:
-                dones[piece_id] = 1
+                dones[piece_id] = True
             if piece_id not in rewards:
                 # last reward
                 rewards[piece_id] = 0
+
+        dones["__all__"] = is_game_done
 
         self.turn += 1
 
@@ -464,4 +466,3 @@ if __name__ == '__main__':
 
     print("\nMatch over. End state:")
     env.render("cli")
-
