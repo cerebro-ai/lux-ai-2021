@@ -441,7 +441,7 @@ if __name__ == '__main__':
     while not done:
         actions = {}
         env.render(mode="cli")
-        print(f"TURN {env.turn}")
+        print(f"TURN: {env.turn}")
 
         # get the first worker of team 0
         for piece_id, piece in obs.items():
@@ -456,17 +456,12 @@ if __name__ == '__main__':
                 break
 
         obs, rewards, dones, infos = env.step(actions)
+        done = env.game_state.match_over()
+
         if p_id in rewards:
             print(f"Reward: {rewards[p_id]}")
             print(f"Done: {dones[p_id]}")
-        else:
-            env.render("cli")
-            done = True
 
+    print("\nMatch over. End state:")
+    env.render("cli")
 
-    """
-    obs
-    choose step
-    reward
-    done
-    """
