@@ -266,6 +266,9 @@ class LuxMAEnv(ParallelEnv):
         for piece_id in actions.keys():
             if piece_id not in dones:
                 dones[piece_id] = 1
+            if piece_id not in rewards:
+                # last reward
+                rewards[piece_id] = 0
 
         self.turn += 1
 
@@ -432,18 +435,38 @@ if __name__ == '__main__':
     env = LuxMAEnv(config=config)
     obs = env.reset()
 
+    p_id = None
+    rewards = {}
     done = False
     while not done:
-
+        actions = {}
         env.render(mode="cli")
+        print(f"TURN {env.turn}")
+
         # get the first worker of team 0
         for piece_id, piece in obs.items():
             if piece_id.startswith("p0_") and "ct" not in piece_id:
+                p_id = piece_id
                 action_id = input(f"enter action_id for {piece_id}:")
+                if action_id == "":
+                    action_id = 0
                 actions = {
                     piece_id: int(action_id)
                 }
                 break
 
-        env.step(actions)
+        obs, rewards, dones, infos = env.step(actions)
+        if p_id in rewards:
+            print(f"Reward: {rewards[p_id]}")
+            print(f"Done: {dones[p_id]}")
+        else:
+            env.render("cli")
+            done = True
 
+
+    """
+    obs
+    choose step
+    reward
+    done
+    """
