@@ -41,16 +41,28 @@ training:
   max_replay_buffer_size: 4096
   max_training_time: 30600
   save_checkpoint_every_x_updates: 10
+  update_opponent_if_win_rate_larger_than_x: 0.6
 
 agent:
-  batch_size: 512
-  entropy_weight: 0.005
-  epochs: 2
-  clip_param: 0.3
-  gamma: 0.985
-  learning_rate: 0.001
-  tau: 0.8
-  use_meta_node: true  # include a meta node that is connected to every cell
+  learning:
+    batch_size: 40
+    entropy_weight: 0.005
+    epochs: 1
+    epsilon: 0.3
+    gamma: 1
+    learning_rate: 0.002
+    tau: 0.8
+    reward_distribution: "uniform"
+
+  model:
+    num_actions: 13
+    policy_hidden_dim: 32
+    value_hidden_dim: 32
+    with_meta_node: false
+    embedding:
+      input_dim: 47
+      hidden_dim: 32
+      output_dim: 32
 
 env:
   allow_carts: false
