@@ -70,7 +70,6 @@ def train(config=None):
     update_step = 0
     total_games = 0
     best_citytiles_end = 10
-    best_model = None
     obs = None
     opponent_updates = 0
 
@@ -132,13 +131,11 @@ def train(config=None):
             agent1.save(name='most_citytiles_end')
 
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
+            log.debug(f"Saving model {total_games}")
             agent1.save(total_games)
 
         mean_loss = agent1.update_model(obs["player_0"])
         losses["player_0"]["mean_losses"].append(mean_loss)
-
-        for agent in agents.values():
-            agent.match_over_callback()
 
         if (update_step % config["wandb"]["replay_every_x_updates"]) == 0 and update_step != 0:
             log.debug("Save replay")

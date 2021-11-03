@@ -25,9 +25,8 @@ setup(
         "tqdm",
         #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
-    package_data={'luxai21': ['game/game_constants.json', 'env/rng/rng.js', 'env/rng/seedrandom.js']},
-    test_suite='nose2.collector.collector',
-    tests_require=['nose2'],
+    package_data={'luxai21': ['luxai21/env/render_index.html']},
+    include_package_data=True
 )
 
 

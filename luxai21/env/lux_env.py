@@ -134,9 +134,11 @@ class LuxEnv(ParallelEnv):
         result = {
             "steps": self._get_replay_steps(),
             # "allCommands": self.game_state.replay_data["allCommands"],
-            "mapType": self.game_state.replay_data["mapType"],
-            "configuration": self.game_config,
-            "seed": self.game_state.replay_data["seed"],
+            "mapType": Constants.MAP_TYPES.RANDOM,
+            "configuration": {
+                **self.game_config,
+                "seed": self.game_state.replay_data["seed"],
+            },
             "info": {
                 "TeamNames": self.agents
             },
