@@ -3,6 +3,7 @@ import random
 from functools import partial
 from pathlib import Path
 
+import gym.spaces
 import numpy as np
 from typing import List, Mapping, Tuple, Any, Union
 import copy
@@ -73,6 +74,8 @@ class LuxMAEnv(ParallelEnv):
 
         self.agents = []
 
+        self.observation_space = self.worker_observation_space()
+
         self.turn = 0
 
         self.unit_action_map = [
@@ -111,8 +114,28 @@ class LuxMAEnv(ParallelEnv):
         self.dones = None
         self.infos = None
 
-    def observation_space(self, agent):
-        return self.observation_spaces[agent]
+    def worker_observation_space(self):
+        return gym.spaces.Dict(**{'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
+                                             dtype=np.float32,
+                                             low=-float('inf'),
+                                             high=float('inf')
+                                             ),
+                                  'game_state': Box(shape=(24,),
+                                                    dtype=np.float32,
+                                                    low=float('-inf'),
+                                                    high=float('inf')
+                                                    ),
+                                  'type': Discrete(3),
+                                  'pos': Box(shape=(2,),
+                                             dtype=np.int32,
+                                             low=float('-inf'),
+                                             high=float('inf')
+                                             ),
+                                  'action_mask': Box(shape=(12,),
+                                                     dtype=np.int,
+                                                     low=0,
+                                                     high=1
+                                                     )})
 
     def action_space(self, agent):
         return self.action_spaces[agent]

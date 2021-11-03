@@ -40,7 +40,7 @@ def batches_to_large_graph(map_batch: torch.Tensor, edge_index: torch.Tensor):
     assert edge_index.dim() == 2
     n_batches, n_nodes, features = map_batch.size()
 
-    x = map_batch.view(-1, features)
+    x = map_batch.reshape(-1, features)
 
     edge_indices = []
     for n in range(n_batches):
