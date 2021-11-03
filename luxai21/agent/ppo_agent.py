@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import deque
 from pathlib import Path
 from typing import List, Deque, Any
@@ -155,6 +156,10 @@ class ActorCritic(nn.Module):
 
         map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
 
+        if self.with_meta_node:
+            meta_node = torch.zeros((batches, 1, features)).to(self.device)
+            map_flat = torch.cat([map_flat, meta_node], dim=1)
+
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
             edge_index = self.edge_index_cache[map_size_x].to(self.device)
@@ -171,7 +176,11 @@ class ActorCritic(nn.Module):
 
     def value(self, map_emb_flat):
         # extract meta node
-        meta_node_state = map_emb_flat[:, -1, :]
+        if self.with_meta_node:
+            meta_node_state = map_emb_flat[:, -1, :]
+        else:
+            # aggregate over all nodes
+            meta_node_state = torch.mean(map_emb_flat, dim=1)
         value = self.value_head_network(meta_node_state)
         return value
 
@@ -220,6 +229,9 @@ class LuxPPOAgent(LuxAgent):
 
         self.actor_critic = ActorCritic(**model, device=self.device).to(self.device)
 
+        logging.warning(
+            f"ActorCritic Params: {sum(p.numel() for p in self.actor_critic.parameters() if p.requires_grad)}")
+
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
         # memory for training
@@ -231,7 +243,9 @@ class LuxPPOAgent(LuxAgent):
         self.masks: List[torch.Tensor] = []
         self.log_probs: List[torch.Tensor] = []
 
+        # rewards
         self.last_returned_actions_length = 0
+        self.last_actions = []
 
         # total steps count
         self.total_step = 1
@@ -239,25 +253,58 @@ class LuxPPOAgent(LuxAgent):
         # mode: train / test
         self.is_test = False
 
+        self.reward_map = {
+            7: 1,  # spawn city
+            8: 0,  # pillage
+            10: 1,  # spawn worker
+            11: 0,  # spawn cart
+            12: 0.1,  # research
+        }
+        # normalize the rewards to sum to 1
+        total_reward = sum([r for r in self.reward_map.values()])
+        for key, reward in self.reward_map.items():
+            self.reward_map[key] = reward / total_reward
+
     def generate_actions(self, observation: dict):
 
         actions = {}
         _map = torch.FloatTensor(observation["_map"]).unsqueeze(0)
+
+        # cat the game state to the end of every map node
+        map_size = _map.size()[1]
+        _game_state = torch.FloatTensor(observation["_game_state"])
+        game_state = _game_state.repeat(1, map_size, map_size, 1)
+
+        _map = torch.cat([_map, game_state], dim=3)
+        self.last_actions = []
+
         for piece_id, piece in observation.items():
             if piece_id.startswith("_"):
                 continue
             piece_tensor = piece_to_tensor(piece)
             action = self.select_action(_map, piece_tensor)
             actions[piece_id] = int(action)
+            self.last_actions.append(int(action))
+
         self.last_returned_actions_length = len(actions.keys())
         return actions
 
-    def receive_reward(self, reward: float, done: int):
+    def receive_reward(self, turn_reward: float, done: int):
         length = self.last_returned_actions_length
-        rewards = torch.FloatTensor([reward / length] * length).to(self.device)
-        masks = torch.FloatTensor([1 - done] * length).to(self.device)
-        self.masks.extend(masks)
+
+        if self.learning_config["reward_distribution"] == "uniform":
+            reward_list = [turn_reward/length]*length
+        elif self.learning_config["reward_distribution"] == "last":
+            reward_list = [0.0] * (length-1)
+            reward_list.append(turn_reward)
+
+        dones = [0] * length
+        dones[-1] = int(done)
+
+        rewards = torch.FloatTensor(reward_list).to(self.device)
+        masks = torch.FloatTensor(dones).to(self.device)
         self.rewards.extend(rewards)
+        self.masks.extend(masks)
 
     def select_action(self, map_tensor: Tensor, piece_tensor: Tensor):
         """Select a action for from the map and piece
@@ -267,13 +314,14 @@ class LuxPPOAgent(LuxAgent):
             action, dist, value = self.actor_critic(map_tensor, piece_tensor)
             selected_action = torch.argmax(dist.logits) if self.is_test else action  # get most probable action
 
-        if not self.is_test:
-            # in training mode
-            self.map_states.append(map_tensor.detach())
-            self.piece_states.append(piece_tensor.detach())
-            self.actions.append(torch.unsqueeze(selected_action, 0).detach())
-            self.values.append(value.detach())
-            self.log_probs.append(torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
+            if not self.is_test:
+                # in training mode
+                self.map_states.append(map_tensor.detach())
+                self.piece_states.append(piece_tensor.detach())
+                self.actions.append(torch.unsqueeze(selected_action, 0).detach())
+                self.values.append(value.detach())
+                self.log_probs.append(
+                    torch.unsqueeze(torch.Tensor([dist.log_prob(selected_action)]), 0).to(self.device))
 
         return selected_action.cpu().detach().numpy()
 
@@ -281,8 +329,12 @@ class LuxPPOAgent(LuxAgent):
         device = self.device
 
         with torch.no_grad():
-
             _map = torch.FloatTensor(last_obs["_map"]).unsqueeze(0).to(device)
+            map_size = _map.size()[1]
+            _game_state = torch.FloatTensor(last_obs["_game_state"]).to(device)
+            game_state = _game_state.repeat(1, map_size, map_size, 1)
+            _map = torch.cat([_map, game_state], dim=3)
+
             _map_emb = self.actor_critic.embed_map(_map)
             next_value = self.actor_critic.value(_map_emb)
 
@@ -343,17 +395,6 @@ class LuxPPOAgent(LuxAgent):
         })
 
         return mean_loss
-
-    def extend_replay_data(self, agent: LuxPPOAgent):
-        """Copy the replay data from the given agent
-        """
-        self.piece_states.extend(agent.piece_states)
-        self.map_states.extend(agent.map_states)
-        self.actions.extend(agent.actions)
-        self.rewards.extend(agent.rewards)
-        self.values.extend(agent.values)
-        self.masks.extend(agent.masks)
-        self.log_probs.extend(agent.log_probs)
 
     def load(self, path):
         self.actor_critic = ActorCritic(**self.model_config, device=self.device)

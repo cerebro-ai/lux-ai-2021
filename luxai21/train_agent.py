@@ -75,6 +75,8 @@ def train(config=None):
 
     while total_games < config["training"]["max_games"]:
         games = 0
+        citytiles_end = []
+        game_rewards = []
 
         # gather data by playing complete games until replay_buffer of one agent is larger than given threshold
         # times two since we use also the replay data of agent2
@@ -82,6 +84,8 @@ def train(config=None):
             obs = env.reset()
             done = env.game_state.match_over()
             log.debug(f"Start game {games}")
+
+            total_game_reward = 0
 
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar = tqdm(total=360, desc="Game progress", ncols=90)
@@ -103,7 +107,7 @@ def train(config=None):
                     agent1.receive_reward(0, 1)
                     break
 
-                # 3. pass reward to agents
+                # 3. pass reward to agent
                 agent1.receive_reward(rewards["player_0"], dones["player_0"])
                 sum_rewards.append(rewards["player_0"])
 
@@ -115,6 +119,8 @@ def train(config=None):
 
             if loglevel not in ["WARNING", "ERROR"]:
                 turn_bar.close()
+
+            game_rewards.append(total_game_reward)
             # GAME ENDS
             citytiles_end = log_and_get_citytiles_game_end(env.game_state)
             wandb.log({
@@ -122,13 +128,13 @@ def train(config=None):
             })
             games += 1
 
-        log.debug(f"Replay buffer full. Games played: {games}")
-
         total_games += games
+        log.debug(f"Replay buffer full. Games played: {games}")
         log.debug(f"Total games so far: {total_games}")
 
         if citytiles_end > best_citytiles_end:
-            agent1.save(name='most_citytiles_end')
+            log.debug(f"Saving new best model after {total_games} games")
+            agent1.save(total_games)
 
         if (update_step % config["training"]["save_checkpoint_every_x_updates"]) == 0 and update_step != 0:
             log.debug(f"Saving model {total_games}")
