@@ -101,7 +101,7 @@ class LuxMAEnv(MultiAgentEnv):
         if "reward" not in config:
             config["reward"] = {}
 
-        self.team_spirit = config.get("team_spirit", 0)
+        self.team_spirit = np.clip(config.get("team_spirit", 0))
         self.reward_map = {
             # unit actions
             Constants.ACTIONS.MOVE: config["reward"].get("move", 0),
@@ -432,69 +432,88 @@ class LuxMAEnv(MultiAgentEnv):
                 if lost_city[team]:
                     rewards[piece_id] += self.reward_map["DEATH_CITY"]
 
+        team_average_reward = {}
+
+        for team in [0, 1]:
+            total_reward = 0
+            N = 0
+            for piece_id in rewards.keys():
+                if piece_id[1] == team:
+                    total_reward += rewards[piece_id]
+                    N += 1
+            team_average_reward[team] = total_reward / N
+
+        if self.team_spirit > 0:
+            for piece_id in rewards.keys():
+                team = piece_id[1]
+                rewards[piece_id] = (1 - self.team_spirit) * rewards[piece_id] + \
+                                    self.team_spirit * team_average_reward[team]
+
         return rewards
 
-    def get_pieces(self):
 
-        pieces = {}
+def get_pieces(self):
+    pieces = {}
 
-        for city in self.game_state.cities.values():
-            for city_cell in city.city_cells:
-                piece_id = get_piece_id(city.team, city_cell.city_tile)
-                pieces[piece_id] = city_cell.city_tile
+    for city in self.game_state.cities.values():
+        for city_cell in city.city_cells:
+            piece_id = get_piece_id(city.team, city_cell.city_tile)
+            pieces[piece_id] = city_cell.city_tile
 
-        for team in [Constants.TEAM.A, Constants.TEAM.B]:
-            for unit in self.game_state.state["teamStates"][team]["units"].values():
-                piece_id = get_piece_id(team, unit)
-                pieces[piece_id] = unit
+    for team in [Constants.TEAM.A, Constants.TEAM.B]:
+        for unit in self.game_state.state["teamStates"][team]["units"].values():
+            piece_id = get_piece_id(team, unit)
+            pieces[piece_id] = unit
 
-        return pieces
+    return pieces
 
-    def generate_obs(self):
 
-        _map_player0 = generate_map_state_matrix(self.game_state)
-        _map_player1 = switch_map_matrix_player_view(_map_player0)
+def generate_obs(self):
+    _map_player0 = generate_map_state_matrix(self.game_state)
+    _map_player1 = switch_map_matrix_player_view(_map_player0)
 
-        unit_states_player0 = generate_unit_states(self.game_state, _map_player0, team=0, config=self.env_config)
-        unit_states_player1 = generate_unit_states(self.game_state, _map_player1, team=1, config=self.env_config)
+    unit_states_player0 = generate_unit_states(self.game_state, _map_player0, team=0, config=self.env_config)
+    unit_states_player1 = generate_unit_states(self.game_state, _map_player1, team=1, config=self.env_config)
 
-        return {
-            **unit_states_player0,
-            **unit_states_player1
-        }
+    return {
+        **unit_states_player0,
+        **unit_states_player1
+    }
 
-    @property
-    def observation_spaces(self):
-        return {
-            piece_id: Dict({
-                'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
-                           dtype=np.float32,
-                           low=-float('inf'),
-                           high=float('inf')
-                           ),
-                'game_state': Box(shape=(24,),
-                                  dtype=np.float32,
-                                  low=float('-inf'),
-                                  high=float('inf')
-                                  ),
-                'type': Discrete(3),
-                'pos': Box(shape=(2,),
-                           dtype=np.int32,
-                           low=float('-inf'),
-                           high=float('inf')
-                           ),
-                'action_mask': Box(shape=(12,),
-                                   dtype=np.int,
-                                   low=0,
-                                   high=1
-                                   ),
-            }) for piece_id, piece in self.get_pieces().items()}
 
-    @property
-    def action_spaces(self):
-        return {piece_id: Discrete(len(self.unit_action_map)) if isinstance(piece, Unit) else Discrete(
-            len(self.city_tile_action_map)) for
-                piece_id, piece in self.get_pieces().items()}
+@property
+def observation_spaces(self):
+    return {
+        piece_id: Dict({
+            'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
+                       dtype=np.float32,
+                       low=-float('inf'),
+                       high=float('inf')
+                       ),
+            'game_state': Box(shape=(24,),
+                              dtype=np.float32,
+                              low=float('-inf'),
+                              high=float('inf')
+                              ),
+            'type': Discrete(3),
+            'pos': Box(shape=(2,),
+                       dtype=np.int32,
+                       low=float('-inf'),
+                       high=float('inf')
+                       ),
+            'action_mask': Box(shape=(12,),
+                               dtype=np.int,
+                               low=0,
+                               high=1
+                               ),
+        }) for piece_id, piece in self.get_pieces().items()}
+
+
+@property
+def action_spaces(self):
+    return {piece_id: Discrete(len(self.unit_action_map)) if isinstance(piece, Unit) else Discrete(
+        len(self.city_tile_action_map)) for
+            piece_id, piece in self.get_pieces().items()}
 
 
 if __name__ == '__main__':
