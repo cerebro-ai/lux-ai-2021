@@ -117,23 +117,23 @@ class LuxMAEnv(MultiAgentEnv):
 
     def worker_observation_space(self):
         return gym.spaces.Dict(**{'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
-                                             dtype=np.float,
+                                             dtype=np.float64,
                                              low=-float('inf'),
                                              high=float('inf')
                                              ),
                                   'game_state': Box(shape=(24,),
-                                                    dtype=np.float,
+                                                    dtype=np.float64,
                                                     low=float('-inf'),
                                                     high=float('inf')
                                                     ),
                                   'type': Discrete(3),
                                   'pos': Box(shape=(2,),
-                                             dtype=np.int,
+                                             dtype=np.float64,
                                              low=float('-inf'),
                                              high=float('inf')
                                              ),
                                   'action_mask': Box(shape=(12,),
-                                                     dtype=np.int,
+                                                     dtype=np.float64,
                                                      low=0,
                                                      high=1
                                                      )})
