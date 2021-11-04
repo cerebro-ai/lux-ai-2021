@@ -71,11 +71,6 @@ class BasicCityTilePolicy(Policy):
 
     """
 
-    @override(Policy)
-    def learn_on_batch(self, samples):
-        """No learning."""
-        return {}
-
     def get_weights(self) -> ModelWeights:
         pass
 
@@ -97,23 +92,10 @@ class BasicCityTilePolicy(Policy):
             timestep: Optional[int] = None,
             **kwargs) -> \
             Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        pass
-
-    def compute_actions_from_input_dict(
-            self,
-            input_dict: SampleBatch,
-            explore: bool = None,
-            timestep: Optional[int] = None,
-            episodes: Optional[List["MultiAgentEpisode"]] = None,
-            **kwargs) -> \
-            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        #  spawn worker
-
-        dict_or_tuple_obs = restore_original_dimensions(torch.tensor(input_dict["obs"]), self.observation_space,
-                                                        "torch")
+        obs = restore_original_dimensions(torch.tensor(obs_batch), self.observation_space, "torch")
 
         actions = []
-        for action_mask in dict_or_tuple_obs["action_mask"]:
+        for action_mask in obs["action_mask"]:
             if action_mask[1]:
                 actions.append(1)
             elif action_mask[2]:
@@ -122,5 +104,5 @@ class BasicCityTilePolicy(Policy):
                 actions.append(3)
             else:
                 actions.append(0)
-        actions = torch.tensor(actions).unsqueeze(-1)
-        return actions, torch.tensor([]), {}
+        actions = torch.tensor(actions)
+        return actions, state_batches, {}
