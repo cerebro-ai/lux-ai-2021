@@ -7,6 +7,7 @@ from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune import register_env, tune
 from ray.util.client import ray
+from ray.tune.integration.wandb import WandbLoggerCallback
 
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTilePolicy, BasicCityTileModel
@@ -69,23 +70,23 @@ def run(debug=True):
                     action_space=Discrete(9),
                     observation_space=Dict(
                         **{'map': Box(shape=(12, 12, 21),
-                                      dtype=np.float32,
+                                      dtype=np.float64,
                                       low=-float('inf'),
                                       high=float('inf')
                                       ),
                            'game_state': Box(shape=(26,),
-                                             dtype=np.float32,
+                                             dtype=np.float64,
                                              low=float('-inf'),
                                              high=float('inf')
                                              ),
                            'type': Discrete(3),
                            'pos': Box(shape=(2,),
-                                      dtype=np.int32,
+                                      dtype=np.float64,
                                       low=0,
                                       high=99999
                                       ),
                            'action_mask': Box(shape=(9,),
-                                              dtype=int,
+                                              dtype=np.float64,
                                               low=0,
                                               high=1
                                               )}),
@@ -111,23 +112,23 @@ def run(debug=True):
                     action_space=Discrete(4),
                     observation_space=Dict(
                         **{'map': Box(shape=(12, 12, 21),
-                                      dtype=np.float32,
+                                      dtype=np.float64,
                                       low=-float('inf'),
                                       high=float('inf')
                                       ),
                            'game_state': Box(shape=(26,),
-                                             dtype=np.float32,
+                                             dtype=np.float64,
                                              low=float('-inf'),
                                              high=float('inf')
                                              ),
                            'type': Discrete(3),
                            'pos': Box(shape=(2,),
-                                      dtype=np.int32,
+                                      dtype=np.float64,
                                       low=0,
                                       high=99999
                                       ),
                            'action_mask': Box(shape=(4,),
-                                              dtype=int,
+                                              dtype=np.float64,
                                               low=0,
                                               high=1
                                               )}),
@@ -150,21 +151,12 @@ def run(debug=True):
     }
 
     ppo_config = {
-        ""
         "rollout_fragment_length": 16,
         "train_batch_size": 128,
         "num_sgd_iter": 3,
         "lr": 2e-4,
         "sgd_minibatch_size": 128,
         "batch_mode": "truncate_episodes",
-    }
-
-    impala_config = {
-        "rollout_fragment_length": 32,
-        "train_batch_size": 256,
-        "min_iter_time_s": 10,
-        "num_workers": 8,
-        "lr": 0.0005,
     }
 
     if debug:
@@ -176,7 +168,15 @@ def run(debug=True):
             result = trainer.train()
     else:
         config = {**config, **ppo_config}
-        results = tune.run("PPO", config=config, stop=stop, verbose=0, checkpoint_at_end=True, checkpoint_freq=5)
+        results = tune.run("PPO", config=config, stop=stop, verbose=1,
+                           checkpoint_at_end=True, checkpoint_freq=5,
+                           callbacks=[
+                               WandbLoggerCallback(
+                                   project="luxai21",
+                                   group="cerebro-ai",
+                                   notes="Shared embedding network",
+                                   tags=["GNNs", "Dev", "rrlib"],
+                                   log_config=True)])
 
     ray.shutdown()
 

@@ -318,7 +318,7 @@ class LuxMAEnv(MultiAgentEnv):
             if self.game_state.configs["seed"] % 1 == 0:
                 t = datetime.datetime.now().isoformat()
                 seed = self.game_state.configs["seed"]
-                with open(f"/Users/erik/Downloads/lux-replays/{t}-{seed}.html", "w") as f:
+                with Path.home().joinpath(f"Downloads/lux-replays/{t}-{seed}.html").open("w") as f:
                     f.write(self.render(mode="html"))
 
         self.turn += 1
