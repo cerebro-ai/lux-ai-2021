@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 import wandb
 
 import numpy as np
@@ -10,6 +10,14 @@ from luxpythonenv.game.game import Game
 from luxpythonenv.game.game_constants import GAME_CONSTANTS
 from luxpythonenv.game.position import Position
 from luxpythonenv.game.unit import Unit
+
+
+def get_piece_id(team: int, piece: Union[CityTile, Unit]):
+    if hasattr(piece, "cargo"):
+        # is unit
+        return f"p{team}_{piece.id}_{piece.rand_id}"
+    else:
+        return f"p{team}_ct_{piece.get_tile_id()}_{piece.rand_id}"
 
 
 def find_all_resources(game_state):
@@ -308,7 +316,7 @@ def generate_game_state_matrix(game_state: Game, team: int):
          enemy_uranium])
 
 
-def generate_unit_states(game_state: Game, team: int, config):
+def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, config):
     """
     Return a dictionary where the keys are the unit_id or citytile_id and the value the unit
     {
@@ -321,21 +329,27 @@ def generate_unit_states(game_state: Game, team: int, config):
     }
     """
     states = {}
+    game_state_array = generate_game_state_matrix(game_state, team)
+
     for _, city in game_state.cities.items():
         if city.team == team:
             for cell in city.city_cells:
                 city_tile = cell.city_tile
-                states[f"ct_{cell.pos.x}_{cell.pos.y}"] = {
+                states[get_piece_id(team, city_tile)] = {
                     "type": 2,
                     "pos": np.array([cell.pos.x, cell.pos.y]),
-                    "action_mask": get_action_mask(game_state, team, None, city_tile, config)
+                    "action_mask": get_action_mask(game_state, team, None, city_tile, config),
+                    "map": map_state,
+                    "game_state": game_state_array
                 }
 
     for unit in game_state.state["teamStates"][team]["units"].values():
-        states[unit.id] = {
+        states[get_piece_id(team, unit)] = {
             "type": 0 if unit.is_worker() else 1,
             "pos": np.array([unit.pos.x, unit.pos.y]),
-            "action_mask": get_action_mask(game_state, team, unit, None, config)
+            "action_mask": get_action_mask(game_state, team, unit, None, config),
+            "map": map_state,
+            "game_state": game_state_array
         }
     return states
 
@@ -359,9 +373,10 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
     11. spawn cart
     12. research
     """
-    action_mask = np.zeros(13)
 
     if unit is not None:
+        action_mask = np.zeros(9)
+
         action_mask[0] = 1  # always allow to do nothing
 
         # check if can act
@@ -426,20 +441,22 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
                         action_mask[8] = 1
 
     elif city_tile is not None:
+        action_mask = np.zeros(4)
+
         # do nothing
-        action_mask[9] = 1
+        action_mask[0] = 1
 
         if not city_tile.can_act():
             return action_mask
 
         if city_tile.can_build_unit():
             if get_unit_count(game_state.state, team) < get_city_tile_count(game_state.cities, team):
-                action_mask[10] = 1
+                action_mask[1] = 1
                 if config["allow_carts"]:
-                    action_mask[11] = 1
+                    action_mask[2] = 1
 
         if city_tile.can_research():
-            action_mask[12] = 1
+            action_mask[3] = 1
     else:
         raise Exception("unit and city_tile both None")
 
