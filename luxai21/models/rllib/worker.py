@@ -31,7 +31,7 @@ class WorkerModel(TorchModelV2, nn.Module):
         self.edge_index_cache = {}
 
         self.policy_head_network = nn.Sequential(
-            nn.Linear(in_features=self.config["map_embedding"]["output_dim"] + 3,
+            nn.Linear(in_features=self.config["map_embedding"]["output_dim"],
                       out_features=self.config["policy_hidden_dim"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy_hidden_dim"],
@@ -57,10 +57,8 @@ class WorkerModel(TorchModelV2, nn.Module):
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
         map_tensor = input_dict["obs"]["map"]
-        pos_tensor = input_dict["obs"]["pos"]
-        action_mask = input_dict["obs"]["action_mask"]
-
-        map_tensor = torch.permute(map_tensor, (0, 2, 3, 1))
+        pos_tensor = input_dict["obs"]["pos"].float()
+        action_mask = input_dict["obs"]["action_mask"].int()
 
         map_emb_flat = self.embed_map(map_tensor)
         self.map_emb_flat = map_emb_flat
@@ -70,9 +68,13 @@ class WorkerModel(TorchModelV2, nn.Module):
         return action_logits, state
 
     def value_function(self) -> TensorType:
-        meta_node_state = self.map_emb_flat[:, -1, :]
+        if self.use_meta_node:
+            meta_node_state = self.map_emb_flat[:, -1, :]
+        else:
+            # aggregate over all nodes
+            meta_node_state = torch.mean(self.map_emb_flat, dim=1)
         value = self.value_head_network(meta_node_state)
-        return value
+        return value.squeeze(1)
 
     def embed_map(self, map_tensor: Tensor):
         """
@@ -89,6 +91,10 @@ class WorkerModel(TorchModelV2, nn.Module):
         assert map_size_x == map_size_y, f"Map is not quadratic: {map_tensor.size()}"
 
         map_flat = torch.reshape(map_tensor, (batches, -1, features))  # batch, nodes, features
+
+        if self.use_meta_node:
+            meta_node = torch.zeros((batches, 1, features)).to(self.device)
+            map_flat = torch.cat([map_flat, meta_node], dim=1)
 
         # get edge_index from cache or compute new and cache
         if map_size_x in self.edge_index_cache:
@@ -114,7 +120,8 @@ class WorkerModel(TorchModelV2, nn.Module):
 
         logits = self.policy_head_network(cell_state)
         mask_value = torch.finfo(logits.dtype).min
-        logits_masked = logits.masked_fill(~action_mask, mask_value)
+        inf_mask = torch.maximum(torch.log(action_mask), torch.tensor(mask_value))
+        logits_masked = logits + inf_mask
         return logits_masked
 
     def to(self, device, *args):

@@ -15,9 +15,9 @@ from luxpythonenv.game.unit import Unit
 def get_piece_id(team: int, piece: Union[CityTile, Unit]):
     if hasattr(piece, "cargo"):
         # is unit
-        return f"p{team}_{piece.id}"
+        return f"p{team}_{piece.id}_{piece.rand_id}"
     else:
-        return f"p{team}_ct_{piece.pos.x}_{piece.pos.y}"
+        return f"p{team}_ct_{piece.get_tile_id()}_{piece.rand_id}"
 
 
 def find_all_resources(game_state):

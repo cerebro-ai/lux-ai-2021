@@ -14,12 +14,13 @@ from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from pettingzoo import ParallelEnv
 from pettingzoo.utils import agent_selector
+from ray.rllib import MultiAgentEnv
 
 from luxai21.env.render_utils import print_map
 from luxai21.env.utils import *
 
 
-class LuxMAEnv(ParallelEnv):
+class LuxMAEnv(MultiAgentEnv):
     """
     Lux Multi Agent Environment following PettingZoo
     """
@@ -116,18 +117,18 @@ class LuxMAEnv(ParallelEnv):
 
     def worker_observation_space(self):
         return gym.spaces.Dict(**{'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
-                                             dtype=np.float32,
+                                             dtype=np.float,
                                              low=-float('inf'),
                                              high=float('inf')
                                              ),
                                   'game_state': Box(shape=(24,),
-                                                    dtype=np.float32,
+                                                    dtype=np.float,
                                                     low=float('-inf'),
                                                     high=float('inf')
                                                     ),
                                   'type': Discrete(3),
                                   'pos': Box(shape=(2,),
-                                             dtype=np.int32,
+                                             dtype=np.int,
                                              low=float('-inf'),
                                              high=float('inf')
                                              ),
@@ -268,8 +269,11 @@ class LuxMAEnv(ParallelEnv):
             self.agents = []
             return {}, {}, {}, {}
 
+        for agent in actions:
+            if isinstance(actions[agent], np.ndarray):
+                actions[agent] = int(actions[agent][0])
+
         game_actions = self.translate_actions(actions)
-        assert len(actions.keys()) == len(game_actions)
 
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
         rewards = self.compute_rewards()
@@ -285,7 +289,7 @@ class LuxMAEnv(ParallelEnv):
         For every agent for which we received an action,
         but it is not any more in observation set done to true
         """
-        dones = {piece_id: False for piece_id in observations.keys()}
+        dones = {piece_id: is_game_done for piece_id in observations.keys()}
         for piece_id in actions.keys():
             if piece_id not in dones:
                 dones[piece_id] = True
@@ -320,10 +324,11 @@ class LuxMAEnv(ParallelEnv):
 
         # agent: p0_
         for agent_id, action_id in actions.items():
+            # agent_id = p0_u_1_4281
             team = int(agent_id[1])
             piece_id = agent_id[3:]
             if piece_id.startswith("ct"):
-                ident, x_str, y_str = piece_id.split("_")
+                ct_str, city_ident, city_id_nr, x_str, y_str, rand_id = piece_id.split("_")
                 cell = self.game_state.map.get_cell(int(x_str), int(y_str))
                 city_tile = cell.city_tile
                 if city_tile is None:
@@ -345,6 +350,8 @@ class LuxMAEnv(ParallelEnv):
                     translated_actions.append(action)
 
             else:
+                piece_id_parts = piece_id.split("_")
+                piece_id = f"{piece_id_parts[0]}_{piece_id_parts[1]}"  # u_1
                 unit = self.game_state.get_unit(team=team, unit_id=piece_id)
                 action = self.unit_action_map[action_id](
                     game=self.game_state,
@@ -363,6 +370,7 @@ class LuxMAEnv(ParallelEnv):
     def compute_rewards(self) -> dict:
 
         # TODO negative reward for units if city dies
+        # TODO implement reward at turn end
 
         rewards = {}
         for piece_id, piece in self.get_pieces().items():
