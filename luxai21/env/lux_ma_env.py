@@ -1,5 +1,6 @@
 import datetime
 import json
+import os.path
 import random
 from functools import partial
 from pathlib import Path
@@ -318,6 +319,8 @@ class LuxMAEnv(MultiAgentEnv):
             if self.game_state.configs["seed"] % 1 == 0:
                 t = datetime.datetime.now().isoformat()
                 seed = self.game_state.configs["seed"]
+                if not os.path.exists(Path.home().joinpath(f"Downloads/lux-replays/")):
+                    os.mkdir(Path.home().joinpath(f"Downloads/lux-replays/"))
                 with Path.home().joinpath(f"Downloads/lux-replays/{t}-{seed}.html").open("w") as f:
                     f.write(self.render(mode="html"))
 
