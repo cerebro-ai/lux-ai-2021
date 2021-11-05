@@ -6,7 +6,7 @@ from ray.tune.integration.wandb import WandbLoggerCallback
 
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTilePolicy, BasicCityTileModel
-from luxai21.models.rllib.worker import WorkerModel
+from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 
 
 def run(config=None, ppo_config=None, stop=None, debug=True):
@@ -23,7 +23,7 @@ def run(config=None, ppo_config=None, stop=None, debug=True):
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
 
     # MODEL
-    ModelCatalog.register_custom_model("worker_model", WorkerModel)
+    ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
     if debug:
@@ -49,4 +49,4 @@ def run(config=None, ppo_config=None, stop=None, debug=True):
 
 
 if __name__ == '__main__':
-    run(debug=False)
+    run(debug=True)
