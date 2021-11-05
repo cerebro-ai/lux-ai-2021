@@ -1,0 +1,28 @@
+env: lux_ma_env
+
+env_config:
+  game:
+    height: 12
+    width: 12
+
+  env:
+    allow_carts: false
+
+  team_spirit: 0
+
+  reward:
+    move: 0
+    transfer: 0
+    build_city: 1
+    pillage: 0
+    build_worker: 1
+    build_cart: 0.1
+    research: 1
+    turn_worker: 0.1
+    turn_citytile: 0.1
+    death_city: -1
+    win: 10
+
+  save_replay:
+    local_every_x: 1
+    wandb_every_x: 1
