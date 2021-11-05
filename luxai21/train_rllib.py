@@ -36,7 +36,7 @@ def run(debug=True):
 
     config = {
         "env": "lux_ma_env",
-        "num_workers": 1,
+        "num_workers": 8,
         "num_envs_per_worker": 1,
         "env_config": {
             "game": {
@@ -45,6 +45,23 @@ def run(debug=True):
             },
             "env": {
                 "allow_carts": False
+            },
+            "team_spirit": 0,
+            "reward": {
+                "move": 0,
+                "transfer": 0,
+                "build_city": 1,
+                "pillage": 0,
+
+                "build_worker": 1,
+                "build_cart": 0.1,
+                "research": 1,
+
+                "turn_worker": 0.1,
+                "turn_citytile": 0.1,
+
+                "death_city": -1,
+                "win": 10
             }
         },
         "multiagent": {
@@ -80,12 +97,12 @@ def run(debug=True):
                                 "use_meta_node": True,
                                 "map_embedding": {
                                     "input_dim": 21,  # TODO use game_state
-                                    "hidden_dim": 64,
-                                    "output_dim": 64
+                                    "hidden_dim": 32,
+                                    "output_dim": 32
                                 },
-                                "policy_hidden_dim": 32,
+                                "policy_hidden_dim": 16,
                                 "policy_output_dim": 9,
-                                "value_hidden_dim": 32,
+                                "value_hidden_dim": 16,
                             }
                         }
                     }),
@@ -130,15 +147,15 @@ def run(debug=True):
     }
 
     stop = {
-        "timesteps_total": 100000
+        "timesteps_total": 50000
     }
 
     ppo_config = {
-        "rollout_fragment_length": 512,
-        "train_batch_size": 512,
-        "num_sgd_iter": 5,
-        "lr": 1e-4,
-        "sgd_minibatch_size": 256,
+        "rollout_fragment_length": 16,
+        "train_batch_size": 128,
+        "num_sgd_iter": 3,
+        "lr": 2e-4,
+        "sgd_minibatch_size": 128,
         "batch_mode": "truncate_episodes",
     }
 
@@ -151,13 +168,15 @@ def run(debug=True):
             result = trainer.train()
     else:
         config = {**config, **ppo_config}
-        results = tune.run("PPO", config=config, stop=stop, verbose=1, callbacks=[
-            WandbLoggerCallback(
-                project="luxai21",
-                group="cerebro-ai",
-                notes="Shared embedding network",
-                tags=["GNNs", "Dev", "rrlib"],
-                log_config=True)])
+        results = tune.run("PPO", config=config, stop=stop, verbose=1,
+                           checkpoint_at_end=True, checkpoint_freq=5,
+                           callbacks=[
+                               WandbLoggerCallback(
+                                   project="luxai21",
+                                   group="cerebro-ai",
+                                   notes="Shared embedding network",
+                                   tags=["GNNs", "Dev", "rrlib"],
+                                   log_config=True)])
 
     ray.shutdown()
 

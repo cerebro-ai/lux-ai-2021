@@ -1,3 +1,4 @@
+import datetime
 import json
 import random
 from functools import partial
@@ -97,17 +98,29 @@ class LuxMAEnv(MultiAgentEnv):
             SpawnCartAction,
             ResearchAction
         ]
+        if "reward" not in config:
+            config["reward"] = {}
 
-        # TODO take reward from config
+        self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
         self.reward_map = {
-            Constants.ACTIONS.MOVE: 0,
-            Constants.ACTIONS.TRANSFER: 0,
-            Constants.ACTIONS.BUILD_CITY: 1,
-            Constants.ACTIONS.PILLAGE: 0,
-            # city tiles
-            Constants.ACTIONS.BUILD_WORKER: 1,
-            Constants.ACTIONS.BUILD_CART: 1,
-            Constants.ACTIONS.RESEARCH: 1
+            # unit actions
+            Constants.ACTIONS.MOVE: config["reward"].get("move", 0),
+            Constants.ACTIONS.TRANSFER: config["reward"].get("transfer", 0),
+            Constants.ACTIONS.BUILD_CITY: config["reward"].get("build_city", 1),
+            Constants.ACTIONS.PILLAGE: config["reward"].get("pillage", 0),
+
+            # city tile actions
+            Constants.ACTIONS.BUILD_WORKER: config["reward"].get("build_worker", 1),
+            Constants.ACTIONS.BUILD_CART: config["reward"].get("build_cart", 0.1),
+            Constants.ACTIONS.RESEARCH: config["reward"].get("research", 1),
+
+            "TURN_UNIT": config["reward"].get("turn_worker", 0.1),
+            "TURN_CITYTILE": config["reward"].get("turn_citytile", 0.1),
+
+            # THIS REWARD IS APPLIED TO EVERY LIVING WORKER
+            "DEATH_CITY": config["reward"].get("death_city", -1),
+
+            "WIN": config["reward"].get("win", 10)
         }
 
         self._cumulative_rewards = dict()
@@ -299,6 +312,15 @@ class LuxMAEnv(MultiAgentEnv):
 
         dones["__all__"] = is_game_done
 
+        # QUICK FIX TO RENDER EVERY GAME
+        # TODO implement this functionality in logger
+        if is_game_done:
+            if self.game_state.configs["seed"] % 1 == 0:
+                t = datetime.datetime.now().isoformat()
+                seed = self.game_state.configs["seed"]
+                with Path.home().joinpath(f"Downloads/lux-replays/{t}-{seed}.html").open("w") as f:
+                    f.write(self.render(mode="html"))
+
         self.turn += 1
 
         return observations, rewards, dones, infos
@@ -373,16 +395,66 @@ class LuxMAEnv(MultiAgentEnv):
         # TODO implement reward at turn end
 
         rewards = {}
+        is_game_over = self.game_state.match_over()
+        winning_team = self.game_state.get_winning_team()
+
+        # Actions
         for piece_id, piece in self.get_pieces().items():
             if piece.last_turn_action is not None:
                 reward = self.reward_map[piece.last_turn_action.action]
                 rewards[piece_id] = reward
             else:
                 rewards[piece_id] = 0
+
+        current_city_ids = [city.id for city in self.game_state.cities.values()]
+
+        lost_city = {
+            0: False,
+            1: False
+        }
+
+        for city in self.last_game_cities.values():
+            if city.id not in current_city_ids:
+                lost_city[city.team] = True
+
+        # Turn reward & death city
+        for piece_id in rewards.keys():
+            team = int(piece_id[1])
+            if is_game_over:
+                if team == winning_team:
+                    rewards[piece_id] += self.reward_map["WIN"]
+
+            if "ct_" in piece_id:
+                rewards[piece_id] += self.reward_map["TURN_CITYTILE"]
+            else:
+                rewards[piece_id] += self.reward_map["TURN_UNIT"]
+
+                if lost_city[team]:
+                    rewards[piece_id] += self.reward_map["DEATH_CITY"]
+
+        team_average_reward = {}
+
+        for team in [0, 1]:
+            total_reward = 0
+            N = 0
+            for piece_id in rewards.keys():
+                if piece_id[1] == team:
+                    total_reward += rewards[piece_id]
+                    N += 1
+            if N > 0:
+                team_average_reward[team] = total_reward / N
+            else:
+                team_average_reward[team] = 0
+
+        if self.team_spirit > 0:
+            for piece_id in rewards.keys():
+                team = piece_id[1]
+                rewards[piece_id] = (1 - self.team_spirit) * rewards[piece_id] + \
+                                    self.team_spirit * team_average_reward[team]
+
         return rewards
 
     def get_pieces(self):
-
         pieces = {}
 
         for city in self.game_state.cities.values():
@@ -398,7 +470,6 @@ class LuxMAEnv(MultiAgentEnv):
         return pieces
 
     def generate_obs(self):
-
         _map_player0 = generate_map_state_matrix(self.game_state)
         _map_player1 = switch_map_matrix_player_view(_map_player0)
 
