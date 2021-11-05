@@ -212,7 +212,7 @@ os.environ["LOGURU_LEVEL"] = "WARNING"
 Copy the config_rllib code from above and start training
 
 ```python
-from luxai21.train_rllib import train
+from luxai21.train_rllib import run
 
-train(config, ppo_config, stop, debug=False)
+run(config, ppo_config, stop, debug=False)
 ```
