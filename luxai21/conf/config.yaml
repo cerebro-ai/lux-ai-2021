@@ -1,0 +1,22 @@
+defaults:
+  - algorithm: ppo
+  - env: lux_ma_env
+  - model: gnn
+  - _self_
+
+debug: false
+verbose: 1
+
+stop:
+  timesteps_total: 50000
+
+checkpoint_at_end: true
+checkpoint_freq: 5
+
+
+wandb:
+  entity: cerebro-ai  # under which account to find project
+  project: luxai21
+  group: dev  # this is just the group for the runs
+  notes: just testing lstms
+  tags: [ GNN, Dev, Rllib ]

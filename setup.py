@@ -23,6 +23,7 @@ setup(
         "pettingzoo",
         "loguru",
         "tqdm",
+        "hydra-core"
         #"luxpythonenv @ git+ssh://git@github.com:cerebro-ai/lux-python-env.git"
     ],
     package_data={'luxai21': ['luxai21/env/render_index.html']},

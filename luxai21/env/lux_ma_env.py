@@ -53,6 +53,10 @@ class LuxMAEnv(MultiAgentEnv):
         """
         super().__init__()  # does nothing
 
+        wandb.init(**config["wandb"])
+
+        self.config = config
+
         self.game_config = config["game"]
         self.env_config = config["env"]
         self.seed = None
@@ -316,13 +320,20 @@ class LuxMAEnv(MultiAgentEnv):
         # QUICK FIX TO RENDER EVERY GAME
         # TODO implement this functionality in logger
         if is_game_done:
-            if self.game_state.configs["seed"] % 1 == 0:
-                t = datetime.datetime.now().isoformat()
-                seed = self.game_state.configs["seed"]
-                if not os.path.exists("lux-replays"):
-                    os.mkdir("lux-replays")
-                with open(f"lux-replays/{t}-{seed}.html", "w") as f:
-                    f.write(self.render(mode="html"))
+            local_every_x = self.config["save_replay"].get("local_every_x", 0)
+            if local_every_x > 0:
+                if self.game_state.configs["seed"] % local_every_x == 0:
+                    t = datetime.datetime.now().isoformat()
+                    seed = self.game_state.configs["seed"]
+                    if not os.path.exists("lux-replays"):
+                        os.mkdir("lux-replays")
+                    with open(f"lux-replays/{t}-{seed}.html", "w") as f:
+                        f.write(self.render(mode="html"))
+
+            wandb_every_x = self.config["save_replay"].get("wandb_every_x", 0)
+            if wandb_every_x > 0:
+                if self.game_state.configs["seed"] % wandb_every_x == 0:
+                    wandb.log({"Replay": wandb.Html(self.render("html"), inject=False)})
 
         self.turn += 1
 
