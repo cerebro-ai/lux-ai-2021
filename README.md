@@ -17,58 +17,150 @@ Install requirements
 pip install -r requirements.txt
 ```
 
-Create hyperparameters file
-```yaml
-# ./hyperparams.yaml
+Create config_rllib.py file
+```python
+# ./config_rllib.py
 
-seed: 505
+import os
+import numpy as np
+from gym.spaces import *
+from ray.rllib.policy.policy import PolicySpec
 
-wandb:
-  entity: rkstgr
-  project: luxai21
-  notes: First run with GNNs (example config)
-  tags:
-    - GNNs
-    - Reward_func1
-  replay_every_x_updates: 5
 
-game:
-  height: 12
-  width: 12
+from luxai21.models.rllib.city_tile import BasicCityTilePolicy
 
-training:
-  max_games: 100000
-  max_replay_buffer_size: 4096
-  max_training_time: 30600
-  save_checkpoint_every_x_updates: 10
 
-agent:
-  batch_size: 512
-  entropy_weight: 0.005
-  epochs: 2
-  clip_param: 0.3
-  gamma: 0.985
-  learning_rate: 0.001
-  tau: 0.8
-  use_meta_node: true  # include a meta node that is connected to every cell
+def policy_mapping_fn(agent_id, **kwargs):
+    if "ct_" in agent_id:
+        return "city_tile_policy"
+    else:
+        return "worker_policy"
 
-env:
-  allow_carts: false
 
-reward:
-  BUILD_CART: 0.05
-  BUILD_CITY_TILE: 0.1
-  BUILD_WORKER: 0.05
-  CITY_AT_END: 1
-  GAIN_RESEARCH_POINT: 0.01
-  RESEARCH_COAL: 0.1
-  RESEARCH_URANIUM: 0.5
-  START_NEW_CITY: 0
-  TURN: 0.01
-  UNIT_AT_END: 0.1
-  WIN: 1
-  ZERO_SUM: false
+config = {
+    "env": "lux_ma_env",
+    "num_workers": 8,
+    "num_envs_per_worker": 1,
+    "env_config": {
+        "game": {
+            "height": 12,
+            "width": 12,
+        },
+        "env": {
+            "allow_carts": False
+        },
+        "team_spirit": 0,
+        "reward": {
+            "move": 0,
+            "transfer": 0,
+            "build_city": 1,
+            "pillage": 0,
 
+            "build_worker": 1,
+            "build_cart": 0.1,
+            "research": 1,
+
+            "turn_worker": 0.1,
+            "turn_citytile": 0.1,
+
+            "death_city": -1,
+            "win": 10
+        }
+    },
+    "multiagent": {
+        "policies": {
+            "worker_policy": PolicySpec(
+                action_space=Discrete(9),
+                observation_space=Dict(
+                    **{'map': Box(shape=(12, 12, 21),
+                                  dtype=np.float64,
+                                  low=-float('inf'),
+                                  high=float('inf')
+                                  ),
+                       'game_state': Box(shape=(26,),
+                                         dtype=np.float64,
+                                         low=float('-inf'),
+                                         high=float('inf')
+                                         ),
+                       'type': Discrete(3),
+                       'pos': Box(shape=(2,),
+                                  dtype=np.float64,
+                                  low=0,
+                                  high=99999
+                                  ),
+                       'action_mask': Box(shape=(9,),
+                                          dtype=np.float64,
+                                          low=0,
+                                          high=1
+                                          )}),
+                config={
+                    "model": {
+                        "custom_model": "worker_model",
+                        "custom_model_config": {
+                            "use_meta_node": True,
+                            "map_embedding": {
+                                "input_dim": 21,  # TODO use game_state
+                                "hidden_dim": 32,
+                                "output_dim": 32
+                            },
+                            "policy_hidden_dim": 16,
+                            "policy_output_dim": 9,
+                            "value_hidden_dim": 16,
+                        }
+                    }
+                }),
+            # Hardcoded policy
+            "city_tile_policy": PolicySpec(
+                policy_class=BasicCityTilePolicy,
+                action_space=Discrete(4),
+                observation_space=Dict(
+                    **{'map': Box(shape=(12, 12, 21),
+                                  dtype=np.float64,
+                                  low=-float('inf'),
+                                  high=float('inf')
+                                  ),
+                       'game_state': Box(shape=(26,),
+                                         dtype=np.float64,
+                                         low=float('-inf'),
+                                         high=float('inf')
+                                         ),
+                       'type': Discrete(3),
+                       'pos': Box(shape=(2,),
+                                  dtype=np.float64,
+                                  low=0,
+                                  high=99999
+                                  ),
+                       'action_mask': Box(shape=(4,),
+                                          dtype=np.float64,
+                                          low=0,
+                                          high=1
+                                          )}),
+                    # config={
+                    #     "model": {
+                    #         "custom_model": "basic_city_tile_model"
+                    #     }
+                    # }
+            ),
+        },
+        "policy_mapping_fn": policy_mapping_fn,
+        "policies_to_train": ["worker_policy"],
+    },
+    "framework": "torch",
+    "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
+}
+
+stop = {
+    "timesteps_total": 50000
+}
+
+ppo_config = {
+    "rollout_fragment_length": 16,
+    "train_batch_size": 128,
+    "num_sgd_iter": 3,
+    "lr": 2e-4,
+    "sgd_minibatch_size": 128,
+    "batch_mode": "truncate_episodes",
+}
 ```
 
 Run locally
@@ -100,76 +192,152 @@ os.environ["LOGURU_LEVEL"] = "WARNING"
 Now you can create a dict with the hyperparameters
 
 ```python
+import os
+import numpy as np
+from gym.spaces import *
+from ray.rllib.policy.policy import PolicySpec
+
+
+from luxai21.models.rllib.city_tile import BasicCityTilePolicy
+
+
+def policy_mapping_fn(agent_id, **kwargs):
+    if "ct_" in agent_id:
+        return "city_tile_policy"
+    else:
+        return "worker_policy"
+
+
 config = {
-    "seed": 505,
-    "wandb": {
-        "entity": "cerebro-ai",
-        "project": "luxai21",
-        "notes": "",
-        "tags": ["GNNs"],
-        "replay_every_x_updates": 10
-    },
-    "game": {
-        "width": 12,
-        "height": 12,
-    },
-    "env": {
-        # if action_mask should allow the building of carts, also affects transfer to carts action
-        "allow_carts": False,
-        # TODO implement "allow_transfer"
-    },
-    "training": {
-        # total games that should be played
-        "max_games": 100000,
-        "max_training_time": 30600,
+    "env": "lux_ma_env",
+    "num_workers": 8,
+    "num_envs_per_worker": 1,
+    "env_config": {
+        "game": {
+            "height": 12,
+            "width": 12,
+        },
+        "env": {
+            "allow_carts": False
+        },
+        "team_spirit": 0,
+        "reward": {
+            "move": 0,
+            "transfer": 0,
+            "build_city": 1,
+            "pillage": 0,
 
-        # will update model after replay_buffer size exceeds this 
-        "max_replay_buffer_size": 4096,
-        "save_checkpoint_every_x_updates": 10
+            "build_worker": 1,
+            "build_cart": 0.1,
+            "research": 1,
+
+            "turn_worker": 0.1,
+            "turn_citytile": 0.1,
+
+            "death_city": -1,
+            "win": 10
+        }
     },
-    "agent": {
-        "learning_rate": 0.001,
-        "gamma": 0.985,  # discount of future rewards
-        "tau": 0.8,
-        "batch_size": 512,
-        "clip_param": 0.3,  # PPO clipping range
-        "epochs": 2,
-        "entropy_weight": 0.005
-        "use_meta_node": True  # include a meta node that is connected to every cell
+    "multiagent": {
+        "policies": {
+            "worker_policy": PolicySpec(
+                action_space=Discrete(9),
+                observation_space=Dict(
+                    **{'map': Box(shape=(12, 12, 21),
+                                  dtype=np.float64,
+                                  low=-float('inf'),
+                                  high=float('inf')
+                                  ),
+                       'game_state': Box(shape=(26,),
+                                         dtype=np.float64,
+                                         low=float('-inf'),
+                                         high=float('inf')
+                                         ),
+                       'type': Discrete(3),
+                       'pos': Box(shape=(2,),
+                                  dtype=np.float64,
+                                  low=0,
+                                  high=99999
+                                  ),
+                       'action_mask': Box(shape=(9,),
+                                          dtype=np.float64,
+                                          low=0,
+                                          high=1
+                                          )}),
+                config={
+                    "model": {
+                        "custom_model": "worker_model",
+                        "custom_model_config": {
+                            "use_meta_node": True,
+                            "map_embedding": {
+                                "input_dim": 21,  # TODO use game_state
+                                "hidden_dim": 32,
+                                "output_dim": 32
+                            },
+                            "policy_hidden_dim": 16,
+                            "policy_output_dim": 9,
+                            "value_hidden_dim": 16,
+                        }
+                    }
+                }),
+            # Hardcoded policy
+            "city_tile_policy": PolicySpec(
+                policy_class=BasicCityTilePolicy,
+                action_space=Discrete(4),
+                observation_space=Dict(
+                    **{'map': Box(shape=(12, 12, 21),
+                                  dtype=np.float64,
+                                  low=-float('inf'),
+                                  high=float('inf')
+                                  ),
+                       'game_state': Box(shape=(26,),
+                                         dtype=np.float64,
+                                         low=float('-inf'),
+                                         high=float('inf')
+                                         ),
+                       'type': Discrete(3),
+                       'pos': Box(shape=(2,),
+                                  dtype=np.float64,
+                                  low=0,
+                                  high=99999
+                                  ),
+                       'action_mask': Box(shape=(4,),
+                                          dtype=np.float64,
+                                          low=0,
+                                          high=1
+                                          )}),
+                    # config={
+                    #     "model": {
+                    #         "custom_model": "basic_city_tile_model"
+                    #     }
+                    # }
+            ),
+        },
+        "policy_mapping_fn": policy_mapping_fn,
+        "policies_to_train": ["worker_policy"],
     },
-    "reward": {
-        "TURN": 0.01,  # base reward every turn
-
-        # BUILDING
-        # reward for every new piece, 
-        # will also be applied negatively if units disappear
-        "BUILD_CITY_TILE": 0.1,
-        "BUILD_WORKER": 0.05,
-        "BUILD_CART": 0.05,
-
-        "START_NEW_CITY": 0,  # if the building of a city_tile leads to a new city
-
-        # RESEARCH
-        "GAIN_RESEARCH_POINT": 0.01,
-        "RESEARCH_COAL": 0.1,  # reach enough research points for coal
-        "RESEARCH_URANIUM": 0.5,
-
-        # END
-        "CITY_AT_END": 1,
-        "UNIT_AT_END": 0.1,  # worker and cart
-        "WIN": 1,
-
-        # if true it will center the agent rewards around zero, and one agent will get a negative reward
-        "ZERO_SUM": False
-    },
+    "framework": "torch",
+    "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
 }
 
+stop = {
+    "timesteps_total": 50000
+}
+
+ppo_config = {
+    "rollout_fragment_length": 16,
+    "train_batch_size": 128,
+    "num_sgd_iter": 3,
+    "lr": 2e-4,
+    "sgd_minibatch_size": 128,
+    "batch_mode": "truncate_episodes",
+}
 ```
 
 and start training
 
 ```python
-from luxai21.train_agent import train
+from luxai21.train_rllib import train
 
-train(config)
+train(config, ppo_config, stop, debug=False)
 ```
