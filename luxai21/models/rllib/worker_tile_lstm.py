@@ -77,7 +77,15 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
         map_tensor = input_dict["obs"]["map"]
+        game_state_tensor = input_dict["obs"]["game_state"]
         pos_tensor = input_dict["obs"]["pos"].float()
+
+        # append game_state to map
+        x = map_tensor.size()[1]
+        y = map_tensor.size()[2]
+        game_state = game_state_tensor.unsqueeze(1).unsqueeze(1).repeat((1, x, y, 1))
+        map_tensor = torch.cat([map_tensor, game_state], dim=3)
+
         self.action_mask = input_dict["obs"]["action_mask"].int()
 
         map_emb_flat = self.embed_map(map_tensor)
