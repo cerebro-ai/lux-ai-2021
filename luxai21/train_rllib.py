@@ -64,6 +64,7 @@ def run(cfg: DictConfig):
                            config=config,
                            stop=dict(cfg.stop),
                            verbose=cfg.verbose,
+                           local_dir=cfg.get("local_dir", None),
                            checkpoint_at_end=cfg.checkpoint_at_end,
                            checkpoint_freq=cfg.checkpoint_freq,
                            restore=cfg.get("restore", None),
