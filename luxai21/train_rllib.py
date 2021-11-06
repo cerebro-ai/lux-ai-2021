@@ -11,8 +11,9 @@ from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
-from luxai21.policy.city_tile import get_city_tile_policy
+from luxai21.policy.city_tile import EagerCityTilePolicy
 from luxai21.policy.worker import get_worker_policy
+from luxai21.policy.random import RandomWorkerPolicy
 
 
 def run(cfg: DictConfig):
@@ -33,13 +34,18 @@ def run(cfg: DictConfig):
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
-            return "worker_policy"
+            team = int(agent_id[1])
+            if team == 0:
+                return "worker_policy"
+            else:
+                return "random_worker"
 
     config = {
         "multiagent": {
             "policies": {
                 "worker_policy": get_worker_policy(cfg.model.worker),
-                "city_tile_policy": get_city_tile_policy()
+                "random_worker": RandomWorkerPolicy,
+                "city_tile_policy": EagerCityTilePolicy
             },
             "policy_mapping_fn": policy_mapping_fn,
             "policies_to_train": ["worker_policy"],
