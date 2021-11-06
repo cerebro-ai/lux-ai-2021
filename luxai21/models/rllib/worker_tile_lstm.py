@@ -1,21 +1,15 @@
-import numpy as np
-import gym
-from gym.spaces import Discrete, MultiDiscrete
 from typing import Dict, List, Union
 
+import gym
+import numpy as np
+import torch
 from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.models.torch.misc import SlimFC
-from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
-from ray.rllib.policy.rnn_sequencing import add_time_dimension
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.policy.view_requirement import ViewRequirement
-from ray.rllib.utils.annotations import override, DeveloperAPI
-from ray.rllib.utils.framework import try_import_torch
-from ray.rllib.utils.torch_ops import one_hot
-from ray.rllib.utils.typing import ModelConfigDict, TensorType
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
+from ray.rllib.policy.rnn_sequencing import add_time_dimension
+from ray.rllib.utils.annotations import override
+from ray.rllib.utils.typing import ModelConfigDict
 from torch import nn, Tensor, TensorType
-import torch
 
 from luxai21.models.gnn.map_embedding import MapEmbeddingTower
 from luxai21.models.gnn.utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
