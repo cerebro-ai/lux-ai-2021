@@ -462,7 +462,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         if self.team_spirit > 0:
             for piece_id in rewards.keys():
-                team = piece_id[1]
+                team = int(piece_id[1])
                 rewards[piece_id] = (1 - self.team_spirit) * rewards[piece_id] + \
                                     self.team_spirit * team_average_reward[team]
 

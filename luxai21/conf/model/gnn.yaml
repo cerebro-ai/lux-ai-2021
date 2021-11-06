@@ -2,10 +2,11 @@ worker:
   custom_model: worker_model
   custom_model_config:
       use_meta_node: True
-      policy_hidden_dim: 16
+      policy_hidden_dim: 32
       policy_output_dim: 9
       value_hidden_dim: 16
       map_embedding:
         input_dim: 21  # TODO use game_state
         hidden_dim: 32
         output_dim: 32
+      lstm_cell_size: 256

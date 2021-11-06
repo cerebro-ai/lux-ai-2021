@@ -10,7 +10,7 @@ from ray.util.client import ray
 from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
-from luxai21.models.rllib.worker import WorkerModel
+from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.policy.city_tile import get_city_tile_policy
 from luxai21.policy.worker import get_worker_policy
 
@@ -26,10 +26,10 @@ def run(cfg: DictConfig):
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
 
     # MODEL
-    ModelCatalog.register_custom_model("worker_model", WorkerModel)
+    ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
-    def policy_mapping_fn(agent_id, **kwargs):
+    def policy_mapping_fn(agent_id, episode, worker, **kwargs):
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
@@ -64,8 +64,10 @@ def run(cfg: DictConfig):
                            config=config,
                            stop=dict(cfg.stop),
                            verbose=cfg.verbose,
+                           local_dir=cfg.get("local_dir", None),
                            checkpoint_at_end=cfg.checkpoint_at_end,
                            checkpoint_freq=cfg.checkpoint_freq,
+                           restore=cfg.get("restore", None),
                            callbacks=[
                                WandbLoggerCallback(
                                    **cfg.wandb,
