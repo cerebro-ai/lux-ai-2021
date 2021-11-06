@@ -1,7 +1,7 @@
 defaults:
   - algorithm: ppo
   - env: lux_ma_env
-  - model: gnn
+  - model: gnn_with_lstm
   - _self_
 
 debug: false
@@ -20,3 +20,4 @@ wandb:
   group: dev  # this is just the group for the runs
   notes: just testing lstms
   tags: [ GNN, Dev, Rllib ]
+  mode: online

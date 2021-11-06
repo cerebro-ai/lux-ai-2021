@@ -1,13 +1,21 @@
+import numpy as np
+import gym
+from gym.spaces import Discrete, MultiDiscrete
 from typing import Dict, List, Union
 
-import gym
-import numpy as np
-import torch
 from ray.rllib.models.modelv2 import ModelV2
+from ray.rllib.models.torch.misc import SlimFC
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.policy.rnn_sequencing import add_time_dimension
+from ray.rllib.policy.sample_batch import SampleBatch
+from ray.rllib.policy.view_requirement import ViewRequirement
+from ray.rllib.utils.annotations import override, DeveloperAPI
+from ray.rllib.utils.framework import try_import_torch
+from ray.rllib.utils.torch_ops import one_hot
+from ray.rllib.utils.typing import ModelConfigDict, TensorType
 from ray.rllib.models.torch.recurrent_net import RecurrentNetwork
-from ray.rllib.utils.annotations import override
-from ray.rllib.utils.typing import ModelConfigDict
 from torch import nn, Tensor, TensorType
+import torch
 
 from luxai21.models.gnn.map_embedding import MapEmbeddingTower
 from luxai21.models.gnn.utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
@@ -32,21 +40,8 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
 
         self.map_emb_model = MapEmbeddingTower(**self.config["gnn"])
         self.map_emb_flat = None  # caching map embedding
-        self._features = None  # features after lstm, shared
-        self.action_mask = None
 
         self.edge_index_cache = {}
-
-        """
-        map -> gnn -> pick pos -> lstm -> features -> policy -> action_mask
-                                                   -> value  -> tanh
-        """
-
-        self.lstm = nn.LSTM(
-            input_size=self.config["gnn"]["output_dim"],
-            **self.config["lstm"],
-            batch_first=True
-        )
 
         self.policy_branch = nn.Sequential(
             nn.Linear(in_features=self.config["lstm"]["hidden_size"],
@@ -56,7 +51,7 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
                       out_features=self.config["policy"]["hidden_size"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy"]["hidden_size"],
-                      out_features=self.config["policy"]["output_size"])
+                      out_features=self.config["policy"]["hidden_size"])
         )
 
         self.value_branch = nn.Sequential(
@@ -67,9 +62,21 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
                       out_features=self.config["value"]["hidden_size"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["value"]["hidden_size"],
-                      out_features=1),
-            nn.Tanh()
+                      out_features=1)
         )
+
+        self.lstm = nn.LSTM(
+            input_size=self.config["gnn"]["output_dim"],
+            hidden_size=self.config["lstm"]["hidden_size"],
+            batch_first=True
+        )
+
+        # Postprocess LSTM output with another hidden layer and compute values.
+        self.logits_head = SlimFC(
+            in_size=self.config["policy"]["hidden_size"],
+            out_size=self.config["policy"]["output_size"],
+            activation_fn=None,
+            initializer=torch.nn.init.xavier_uniform_)
 
     @override(RecurrentNetwork)
     def forward(self, input_dict: Dict[str, TensorType],
@@ -83,13 +90,33 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
         self.map_emb_flat = map_emb_flat
 
         piece_map_emb = self.pick_by_position(map_emb_flat, pos_tensor)
-        lstm_input_dict = {'obs_flat': piece_map_emb}
 
-        return super().forward(lstm_input_dict, state, seq_lens)
+        flat_inputs = piece_map_emb.float()
+        if isinstance(seq_lens, np.ndarray):
+            seq_lens = torch.Tensor(seq_lens).int()
+        max_seq_len = flat_inputs.shape[0] // seq_lens.shape[0]
+        self.time_major = self.model_config.get("_time_major", False)
+        inputs = add_time_dimension(
+            flat_inputs,
+            max_seq_len=max_seq_len,
+            framework="torch",
+            time_major=self.time_major,
+        )
+
+        action_mask = add_time_dimension(
+            self.action_mask,
+            max_seq_len=max_seq_len,
+            framework="torch",
+            time_major=self.time_major
+        )
+
+        output, new_state = self.forward_rnn(inputs, state, seq_lens, action_mask)
+        output = torch.reshape(output, [-1, self.num_outputs])
+        return output, new_state
 
     @override(RecurrentNetwork)
     def forward_rnn(self, inputs: TensorType, state: List[TensorType],
-                    seq_lens: TensorType) -> (TensorType, List[TensorType]):
+                    seq_lens: TensorType, action_mask: TensorType) -> (TensorType, List[TensorType]):
         '''
                 self.lstm = nn.LSTM(
             self.config["policy_output_dim"], self.config["lstm_cell_size"], batch_first=False)
@@ -111,30 +138,52 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
             [torch.unsqueeze(state[0], 0),
              torch.unsqueeze(state[1], 0)])
 
-        logits = self.policy_branch(self._features)
-        masked_logits = self.mask_logits(logits)
+        policy_features = self.policy_branch(self._features)
+        action_logits = self.logits_head(policy_features)
+        masked_logits = self.mask_logits(action_logits, action_mask)
 
         return masked_logits, [torch.squeeze(h, 0), torch.squeeze(c, 0)]
 
     @override(ModelV2)
     def get_initial_state(self) -> Union[List[np.ndarray], List[TensorType]]:
         # Place hidden states on same device as model.
-        linear = next(self._logits_branch._model.children())
+        linear = next(self.logits_head._model.children())
         h = [
-            linear.weight.new(1, self.config["lstm_cell_size"]).zero_().squeeze(0),
-            linear.weight.new(1, self.config["lstm_cell_size"]).zero_().squeeze(0)
+            linear.weight.new(1, self.config["lstm"]["hidden_size"]).zero_().squeeze(0),
+            linear.weight.new(1, self.config["lstm"]["hidden_size"]).zero_().squeeze(0)
         ]
         return h
 
     @override(ModelV2)
     def value_function(self) -> TensorType:
-        # if self.use_meta_node:
-        #     meta_node_state = self.map_emb_flat[:, -1, :]
-        # else:
-        #     # aggregate over all nodes
-        #     meta_node_state = torch.mean(self.map_emb_flat, dim=1)
-        value = self.value_head_network(self._features)
-        return value.squeeze(1)
+        features = torch.reshape(self._features, [-1, self.config["lstm"]["hidden_size"]])
+        value = self.value_branch(features).squeeze(1)
+        return value
+
+    def pick_by_position(self, map_emb_flat, pos_tensor):
+        """
+        Pick the corresponding node from the map_emb_flat on the specific position
+
+        Args:
+            map_emb_flat: [B, N, F] Tensor
+            pos_tensor: [B, 2] Tensor
+
+        Returns:
+            piece_map_emb: [B, F]
+        """
+        batches = map_emb_flat.size()[0]
+
+        j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1).to(self.device)
+        j = torch.sum(pos_tensor * j_h, 1).long()
+        indices = j[..., None, None].expand(-1, 1, map_emb_flat.size(2))
+        piece_map_emb = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
+        return piece_map_emb
+
+    def mask_logits(self, logits, action_mask):
+        mask_value = torch.finfo(logits.dtype).min
+        inf_mask = torch.maximum(torch.log(action_mask), torch.tensor(mask_value))
+        logits_masked = logits + inf_mask
+        return logits_masked
 
     def embed_map(self, map_tensor: Tensor):
         """
@@ -170,28 +219,17 @@ class WorkerLSTMModel(RecurrentNetwork, nn.Module):
         map_emb_flat, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
         return map_emb_flat
 
-    def pick_by_position(self, map_emb_flat, pos_tensor):
-        """
-        Pick the corresponding node from the map_emb_flat on the specific position
-
-        Args:
-            map_emb_flat: [B, N, F] Tensor
-            pos_tensor: [B, 2] Tensor
-
-        Returns:
-            piece_map_emb: [B, F]
-        """
+    def action_logits(self, map_emb_flat, worker_pos, action_mask):
         batches = map_emb_flat.size()[0]
 
         j_h = torch.Tensor([12, 1]).unsqueeze(0).repeat(batches, 1).to(self.device)
-        j = torch.sum(pos_tensor * j_h, 1).long()
+        j = torch.sum(worker_pos * j_h, 1).long()
         indices = j[..., None, None].expand(-1, 1, map_emb_flat.size(2))
-        piece_map_emb = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
-        return piece_map_emb
+        cell_state = torch.gather(map_emb_flat, dim=1, index=indices).squeeze(1)
 
-    def mask_logits(self, logits):
+        logits = self.policy_branch(cell_state)
         mask_value = torch.finfo(logits.dtype).min
-        inf_mask = torch.maximum(torch.log(self._action_mask), torch.tensor(mask_value))
+        inf_mask = torch.maximum(torch.log(action_mask), torch.tensor(mask_value))
         logits_masked = logits + inf_mask
         return logits_masked
 
