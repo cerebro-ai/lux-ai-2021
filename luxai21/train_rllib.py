@@ -51,7 +51,7 @@ def run(cfg: DictConfig):
         },
         **cfg.algorithm.config,
         "framework": "torch",
-        "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
+        "num_gpus": 0,
     }
 
     if cfg.debug:
