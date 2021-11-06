@@ -71,7 +71,8 @@ class LuxMAEnv(MultiAgentEnv):
         self.game_state = Game(lux_game_config)
         # rendering
         self.game_state.start_replay_logging(stateful=True)
-        self.last_game_state: Optional[Any] = None  # to derive rewards per turn
+        self.last_game_state: Optional[Any] = None
+        self.last_game_stats: Optional[Any] = None# to derive rewards per turn
         self.last_game_cities: Optional[Dict] = None
 
         self.env_config = {
@@ -124,6 +125,17 @@ class LuxMAEnv(MultiAgentEnv):
 
             # THIS REWARD IS APPLIED TO EVERY LIVING WORKER
             "DEATH_CITY": config["reward"].get("death_city", -1),
+
+            # THIS REWARD IS APPLIED TO EVERY LIVING WORKER AND CITY
+            "WOOD_COLLECTED": config["reward"].get("wood_collected", 0.1),
+            "COAL_COLLECTED": config["reward"].get("coal_collected", 0.2),
+            "URANIUM_COLLECTED": config["reward"].get("uranium_collected", 0.3),
+            "FUEL_GENERATED": config["reward"].get("fuel_generated", 0.2),
+            "RESEARCH_POINTS": config["reward"].get("research_points", 0.1),
+            "COAL_RESEARCHED": config["reward"].get("coal_researched", 2),
+            "URANIUM_RESEARCHED": config["reward"].get("uranium_researched", 5),
+            "CITYTILES_END": config["reward"].get("citytiles_end", 2),
+            "CITYTILES_END_OPPONENT": config["reward"].get("citytiles_end_opponent", -1),
 
             "WIN": config["reward"].get("win", 10)
         }
@@ -264,6 +276,7 @@ class LuxMAEnv(MultiAgentEnv):
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
         self.last_game_state = copy.deepcopy(self.game_state.state)
+        self.last_game_stats = copy.deepcopy(self.game_state.stats)
         self.last_game_cities = copy.deepcopy(self.game_state.cities)
 
         obs = self.generate_obs()
@@ -412,13 +425,12 @@ class LuxMAEnv(MultiAgentEnv):
         is_game_over = self.game_state.match_over()
         winning_team = self.game_state.get_winning_team()
 
-        # Actions
         for piece_id, piece in self.get_pieces().items():
+            reward = 0
+            # Actions
             if piece.last_turn_action is not None:
                 reward = self.reward_map[piece.last_turn_action.action]
-                rewards[piece_id] = reward
-            else:
-                rewards[piece_id] = 0
+            rewards[piece_id] = reward
 
         current_city_ids = [city.id for city in self.game_state.cities.values()]
 
@@ -430,6 +442,15 @@ class LuxMAEnv(MultiAgentEnv):
         for city in self.last_game_cities.values():
             if city.id not in current_city_ids:
                 lost_city[city.team] = True
+
+        if is_game_over:
+            city_tiles_team1 = 0
+            city_tiles_team2 = 0
+            for _, city in self.game_state.cities.items():
+                if city.team == 0:
+                    city_tiles_team1 += len(city.city_cells)
+                else:
+                    city_tiles_team2 += len(city.city_cells)
 
         # Turn reward & death city
         for piece_id in rewards.keys():
@@ -445,6 +466,40 @@ class LuxMAEnv(MultiAgentEnv):
 
                 if lost_city[team]:
                     rewards[piece_id] += self.reward_map["DEATH_CITY"]
+
+            # Collected resources
+            rewards[piece_id] += self.reward_map["WOOD_COLLECTED"] * \
+                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['wood'] -
+                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['wood'])
+            rewards[piece_id] += self.reward_map["COAL_COLLECTED"] * \
+                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['coal'] -
+                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['coal'])
+            rewards[piece_id] += self.reward_map["URANIUM_COLLECTED"] * \
+                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['uranium'] -
+                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['uranium'])
+            # Fuel
+            rewards[piece_id] += self.reward_map["FUEL_GENERATED"] * \
+                                 (self.game_state.stats['teamStats'][team]['fuelGenerated'] -
+                                  self.last_game_stats['teamStats'][team]['fuelGenerated'])
+
+            # Research Points
+            if not self.last_game_state['teamStates'][team]['researched']['uranium']:
+                rewards[piece_id] += self.reward_map["RESEARCH_POINTS"] * \
+                                     (self.game_state.state['teamStates'][team]['researchPoints'] -
+                                      self.last_game_state['teamStates'][team]['researchPoints'])
+                if self.game_state.state['teamStates'][team]['researched']['coal']:
+                    rewards[piece_id] += self.reward_map["COAL_RESEARCHED"]
+
+                if self.game_state.state['teamStates'][team]['researched']['uranium']:
+                    rewards[piece_id] += self.reward_map["URANIUM_RESEARCHED"]
+
+            if is_game_over:
+                if team == 0:
+                    rewards[piece_id] += self.reward_map["CITYTILES_END"] * city_tiles_team1
+                    rewards[piece_id] -= self.reward_map["CITYTILES_END_OPPONENT"] * city_tiles_team2
+                else:
+                    rewards[piece_id] += self.reward_map["CITYTILES_END"] * city_tiles_team2
+                    rewards[piece_id] -= self.reward_map["CITYTILES_END_OPPONENT"] * city_tiles_team1
 
         team_average_reward = {}
 
