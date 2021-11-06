@@ -66,6 +66,7 @@ def run(cfg: DictConfig):
                            verbose=cfg.verbose,
                            checkpoint_at_end=cfg.checkpoint_at_end,
                            checkpoint_freq=cfg.checkpoint_freq,
+                           restore=cfg.get("restore", None),
                            callbacks=[
                                WandbLoggerCallback(
                                    **cfg.wandb,

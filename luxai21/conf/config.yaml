@@ -13,11 +13,13 @@ stop:
 checkpoint_at_end: true
 checkpoint_freq: 5
 
+# restore: <path to checkpoint>
+
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: dev  # this is just the group for the runs
+  group: lstm_test_2  # this is just the group for the runs
   notes: just testing lstms
   tags: [ GNN, Dev, Rllib ]
   mode: online
