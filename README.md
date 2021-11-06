@@ -31,6 +31,9 @@ Install the required packages
 !pip install git+https://<username>:<token or password>@github.com/cerebro-ai/lux-ai-2021.git
 !pip install git+https://<username>:<token or password>@github.com/cerebro-ai/lux-python-env.git
 !pip install wandb --upgrade
+
+!pip install omegaconf
+!pip install lz4
 ``` 
 
 Set API Key for Weights & Biases (Metrics logging)
@@ -103,6 +106,7 @@ config = {
                     'hidden_dim': 32, 
                     'output_dim': 32
                 }
+                ''
             }
         }
     }, 
