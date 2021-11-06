@@ -13,6 +13,7 @@ stop:
 checkpoint_at_end: true
 checkpoint_freq: 5
 
+local_dir: "~/ray_results"
 # restore: <path to checkpoint>
 
 
