@@ -29,7 +29,7 @@ def run(cfg: DictConfig):
     ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
-    def policy_mapping_fn(agent_id, **kwargs):
+    def policy_mapping_fn(agent_id, episode, worker, **kwargs):
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
