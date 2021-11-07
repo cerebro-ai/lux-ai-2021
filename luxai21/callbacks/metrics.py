@@ -71,7 +71,10 @@ class MetricsCallbacks(DefaultCallbacks):
 
         episode.custom_metrics["game_won"] = 1 if env.game_state.get_winning_team() == 0 else 0
 
-        episode.media["replay"] = wandb.Html(env.render("html"), inject=False)
+        try:
+            episode.media["replay"] = wandb.Html(env.render("html"), inject=False)
+        except AttributeError as e:
+            print(f"Could not generate replay: {e}")
 
         # episode.hist_data["player_city_tiles"] = episode.user_data["player_city_tiles"]
         # episode.hist_data["opponent_city_tiles"] = episode.user_data["opponent_city_tiles"]
