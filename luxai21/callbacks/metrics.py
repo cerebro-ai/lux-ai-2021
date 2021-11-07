@@ -88,7 +88,6 @@ class MetricsCallbacks(DefaultCallbacks):
         print("returned sample batch of size {}".format(samples.count))
 
     def on_train_result(self, *, trainer, result: dict, **kwargs):
-        print("episode_media", result["episode_media"])
 
         if "replay" in result["episode_media"].keys():
             # compute the score of each game, given end city_tiles and worker
@@ -97,10 +96,12 @@ class MetricsCallbacks(DefaultCallbacks):
 
             # Pick the best game
             best_game_index = np.argmax(game_score)
+            print("log best game with score", game_score[best_game_index])
             result["episode_media"]["best_game"] = result["episode_media"]["replay"][best_game_index]
 
             # Pick the worst game
             worst_game_index = np.argmin(game_score)
+            print("log worst game with score", game_score[best_game_index])
             result["episode_media"]["worst_game"] = result["episode_media"]["replay"][worst_game_index]
 
             # Delete all other replays
