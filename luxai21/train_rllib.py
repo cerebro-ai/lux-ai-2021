@@ -7,6 +7,7 @@ from ray.rllib.models import ModelCatalog
 from ray.tune import register_env, tune
 from ray.util.client import ray
 
+from luxai21.callbacks.metrics import MetricsCallbacks
 from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
@@ -55,6 +56,7 @@ def run(cfg: DictConfig):
             **cfg.env.env_config,
             "wandb": cfg.wandb
         },
+        "callbacks": MetricsCallbacks,
         **cfg.algorithm.config,
         "framework": "torch",
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
@@ -63,8 +65,9 @@ def run(cfg: DictConfig):
     if cfg.debug:
 
         trainer = ppo.PPOTrainer(config=config, env="lux_ma_env")
-        for i in range(3):
+        for i in range(10):
             result = trainer.train()
+            print(result)
     else:
         results = tune.run(cfg.algorithm.name,
                            config=config,
