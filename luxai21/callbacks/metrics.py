@@ -73,6 +73,7 @@ class MetricsCallbacks(DefaultCallbacks):
 
         try:
             episode.media["replay"] = wandb.Html(env.render("html"), inject=False)
+            print("save replay")
         except AttributeError as e:
             print(f"Could not generate replay: {e}")
             print(f"Game match_over should be True:", {env.game_state.match_over()})
@@ -87,6 +88,7 @@ class MetricsCallbacks(DefaultCallbacks):
         print("returned sample batch of size {}".format(samples.count))
 
     def on_train_result(self, *, trainer, result: dict, **kwargs):
+        print("episode_media", result["episode_media"])
 
         if "replay" in result["episode_media"].keys():
             # compute the score of each game, given end city_tiles and worker
