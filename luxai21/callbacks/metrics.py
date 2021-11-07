@@ -75,6 +75,7 @@ class MetricsCallbacks(DefaultCallbacks):
             episode.media["replay"] = wandb.Html(env.render("html"), inject=False)
         except AttributeError as e:
             print(f"Could not generate replay: {e}")
+            print(f"Game match_over should be True:", {env.game_state.match_over()})
 
         # episode.hist_data["player_city_tiles"] = episode.user_data["player_city_tiles"]
         # episode.hist_data["opponent_city_tiles"] = episode.user_data["opponent_city_tiles"]
