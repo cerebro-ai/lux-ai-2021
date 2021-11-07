@@ -1,18 +1,82 @@
 import os
-from multiprocessing import Queue
-from typing import Optional, Dict, List
+import pickle
+from collections.abc import Sequence
+from multiprocessing import Process, Queue
+from numbers import Number
+from typing import Any, Callable, Dict, List, Optional, Tuple
+import numpy as np
 
-from ray.tune.integration.wandb import _WandbLoggingProcess, _set_api_key, _clean_log, _WANDB_QUEUE_END
-from ray.tune.logger import LoggerCallback
+from ray import logger
+from ray.tune import Trainable
+from ray.tune.function_runner import FunctionRunner
+from ray.tune.integration.wandb import _WandbLoggingProcess, _set_api_key, _WANDB_QUEUE_END
+from ray.tune.logger import LoggerCallback, Logger
+from ray.tune.utils import flatten_dict
 from ray.tune.trial import Trial
+
+import yaml
+import wandb
 
 """
 This is a copy of the WandbLoggerCallback from ray tune.
 
 The only difference is:
 - introduce wandb entity as parameter
+- add html to valid types
 
 """
+_VALID_TYPES = (Number, wandb.data_types.Video, wandb.data_types.Image, wandb.data_types.Html)
+_VALID_ITERABLE_TYPES = (wandb.data_types.Video, wandb.data_types.Image)
+
+
+def _is_allowed_type(obj):
+    """Return True if type is allowed for logging to wandb"""
+    if isinstance(obj, np.ndarray) and obj.size == 1:
+        return isinstance(obj.item(), Number)
+    if isinstance(obj, Sequence) and len(obj) > 0:
+        return isinstance(obj[0], _VALID_ITERABLE_TYPES)
+    return isinstance(obj, _VALID_TYPES)
+
+
+def _clean_log(obj: Any):
+    # Fixes https://github.com/ray-project/ray/issues/10631
+    if isinstance(obj, dict):
+        return {k: _clean_log(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_log(v) for v in obj]
+    elif _is_allowed_type(obj):
+        return obj
+
+    # Else
+    try:
+        pickle.dumps(obj)
+        yaml.dump(
+            obj,
+            Dumper=yaml.SafeDumper,
+            default_flow_style=False,
+            allow_unicode=True,
+            encoding="utf-8")
+        return obj
+    except Exception:
+        # give up, similar to _SafeFallBackEncoder
+        fallback = str(obj)
+
+        # Try to convert to int
+        try:
+            fallback = int(fallback)
+            return fallback
+        except ValueError:
+            pass
+
+        # Try to convert to float
+        try:
+            fallback = float(fallback)
+            return fallback
+        except ValueError:
+            pass
+
+        # Else, return string
+        return fallback
 
 
 class WandbLoggerCallback(LoggerCallback):
