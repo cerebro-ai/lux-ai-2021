@@ -3,14 +3,11 @@ import pickle
 from collections.abc import Sequence
 from multiprocessing import Process, Queue
 from numbers import Number
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ray import logger
-from ray.tune import Trainable
-from ray.tune.function_runner import FunctionRunner
-from ray.tune.integration.wandb import _WandbLoggingProcess, _set_api_key, _WANDB_QUEUE_END
-from ray.tune.logger import LoggerCallback, Logger
+from ray.tune.logger import LoggerCallback
 from ray.tune.utils import flatten_dict
 from ray.tune.trial import Trial
 
@@ -25,6 +22,8 @@ The only difference is:
 - add html to valid types
 
 """
+WANDB_ENV_VAR = "WANDB_API_KEY"
+_WANDB_QUEUE_END = (None,)
 _VALID_TYPES = (Number, wandb.data_types.Video, wandb.data_types.Image, wandb.data_types.Html)
 _VALID_ITERABLE_TYPES = (wandb.data_types.Video, wandb.data_types.Image)
 
@@ -77,6 +76,56 @@ def _clean_log(obj: Any):
 
         # Else, return string
         return fallback
+
+
+class _WandbLoggingProcess(Process):
+    """
+    We need a `multiprocessing.Process` to allow multiple concurrent
+    wandb logging instances locally.
+    """
+
+    def __init__(self, queue: Queue, exclude: List[str], to_config: List[str],
+                 *args, **kwargs):
+        super(_WandbLoggingProcess, self).__init__()
+        self.queue = queue
+        self._exclude = set(exclude)
+        self._to_config = set(to_config)
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        os.environ["WANDB_START_METHOD"] = "fork"
+        wandb.init(*self.args, **self.kwargs)
+        while True:
+            result = self.queue.get()
+            if result == _WANDB_QUEUE_END:
+                break
+            log, config_update = self._handle_result(result)
+            wandb.config.update(config_update, allow_val_change=True)
+            wandb.log(log)
+        wandb.join()
+
+    def _handle_result(self, result: Dict) -> Tuple[Dict, Dict]:
+        config_update = result.get("config", {}).copy()
+        log = {}
+        flat_result = flatten_dict(result, delimiter="/")
+
+        for k, v in flat_result.items():
+            if any(
+                    k.startswith(item + "/") or k == item
+                    for item in self._to_config):
+                config_update[k] = v
+            elif any(
+                    k.startswith(item + "/") or k == item
+                    for item in self._exclude):
+                continue
+            elif not _is_allowed_type(v):
+                continue
+            else:
+                log[k] = v
+
+        config_update.pop("callbacks", None)  # Remove callbacks
+        return log, config_update
 
 
 class WandbLoggerCallback(LoggerCallback):
@@ -235,3 +284,30 @@ class WandbLoggerCallback(LoggerCallback):
                 del self._trial_queues[trial]
             self._trial_processes[trial].join(timeout=2)
             del self._trial_processes[trial]
+
+
+def _set_api_key(api_key_file: Optional[str] = None,
+                 api_key: Optional[str] = None):
+    """Set WandB API key from `wandb_config`. Will pop the
+    `api_key_file` and `api_key` keys from `wandb_config` parameter"""
+    if api_key_file:
+        if api_key:
+            raise ValueError("Both WandB `api_key_file` and `api_key` set.")
+        with open(api_key_file, "rt") as fp:
+            api_key = fp.readline().strip()
+    if api_key:
+        os.environ[WANDB_ENV_VAR] = api_key
+    elif not os.environ.get(WANDB_ENV_VAR):
+        try:
+            # Check if user is already logged into wandb.
+            wandb.ensure_configured()
+            if wandb.api.api_key:
+                logger.info("Already logged into W&B.")
+                return
+        except AttributeError:
+            pass
+        raise ValueError(
+            "No WandB API key found. Either set the {} environment "
+            "variable, pass `api_key` or `api_key_file` to the"
+            "`WandbLoggerCallback` class as arguments, "
+            "or run `wandb login` from the command line".format(WANDB_ENV_VAR))
