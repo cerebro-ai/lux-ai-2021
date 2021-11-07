@@ -101,7 +101,7 @@ class MetricsCallbacks(DefaultCallbacks):
 
             # Pick the worst game
             worst_game_index = np.argmin(game_score)
-            print("log worst game with score", game_score[best_game_index])
+            print("log worst game with score", game_score[worst_game_index])
             result["episode_media"]["worst_game"] = result["episode_media"]["replay"][worst_game_index]
 
             # Delete all other replays
