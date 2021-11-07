@@ -20,6 +20,8 @@ from luxai21.env.lux_ma_env import LuxMAEnv
 
 
 class MetricsCallbacks(DefaultCallbacks):
+    log_replays = False
+
     def on_episode_start(self,
                          *,
                          worker: "RolloutWorker",
@@ -75,19 +77,16 @@ class MetricsCallbacks(DefaultCallbacks):
 
         episode.custom_metrics["game_won"] = 1 if env.game_state.get_winning_team() == 0 else 0
 
-        try:
-            _, filepath = tempfile.mkstemp("_lux-replay_" + util.generate_id() + ".html")
-            with Path(filepath).open("w") as f:
-                f.write(env.render("html"))
-            episode.media["replay"] = wandb.Html(filepath, inject=False)
-        except AttributeError as e:
-            print(f"Could not generate replay: {e}")
-            print(f"Game match_over should be True:", {env.game_state.match_over()})
-
-        # episode.hist_data["player_city_tiles"] = episode.user_data["player_city_tiles"]
-        # episode.hist_data["opponent_city_tiles"] = episode.user_data["opponent_city_tiles"]
-        # episode.hist_data["player_worker"] = episode.user_data["player_worker"]
-        # episode.hist_data["opponent_worker"] = episode.user_data["player_city_tiles"]
+        if self.log_replays:
+            try:
+                # store the replay in a tmp file, which is currently not cleared!!!
+                _, filepath = tempfile.mkstemp("_lux-replay_" + util.generate_id() + ".html")
+                with Path(filepath).open("w") as f:
+                    f.write(env.render("html"))
+                episode.media["replay"] = wandb.Html(filepath, inject=False)
+            except AttributeError as e:
+                print(f"Could not generate replay: {e}")
+                print(f"Game match_over should be True:", {env.game_state.match_over()})
 
     def on_sample_end(self, *, worker: "RolloutWorker", samples: SampleBatch,
                       **kwargs) -> None:
@@ -95,38 +94,40 @@ class MetricsCallbacks(DefaultCallbacks):
 
     def on_train_result(self, *, trainer, result: dict, **kwargs):
 
-        if "replay" in result["episode_media"].keys():
-            n_replays = result["episodes_this_iter"]
-            print(f"Number collected replays: {n_replays}")
+        n_replays = result["episodes_this_iter"]
 
-            # compute the score of each game, given end city_tiles and worker
-            game_score = 1000 * np.array(result["hist_stats"]["end_player_city_tiles"][-n_replays:]) + np.array(
-                result["hist_stats"]["end_player_worker"][-n_replays:])
+        # compute the score of each game, given end city_tiles and worker
+        game_score = 1000 * np.array(result["hist_stats"]["end_player_city_tiles"][-n_replays:]) + np.array(
+            result["hist_stats"]["end_player_worker"][-n_replays:])
 
-            end_player_city_tiles = result["hist_stats"]["end_player_city_tiles"][-n_replays:]
+        end_player_city_tiles = result["hist_stats"]["end_player_city_tiles"][-n_replays:]
 
-            # Pick the best game
-            best_game_index = np.argmax(game_score)
-            print("log best game with score", game_score[best_game_index])
+        # Pick the best game
+        best_game_index = np.argmax(game_score)
+        print("log best game with score", game_score[best_game_index])
+        if self.log_replays:
             print("best game replay", result["episode_media"]["replay"][-n_replays:][best_game_index]._path)
-            result["episode_media"]["best_game"] = copy(result["episode_media"]["replay"][-n_replays:][best_game_index])
+            result["episode_media"]["best_game"] = copy(
+                result["episode_media"]["replay"][-n_replays:][best_game_index])
 
-            # store the number of city_tiles of the best game
-            result["custom_metrics"]["best_game_city_tiles"] = end_player_city_tiles[-n_replays:][best_game_index]
+        # store the number of city_tiles of the best game
+        result["custom_metrics"]["best_game_city_tiles"] = end_player_city_tiles[-n_replays:][best_game_index]
 
-            # Pick the worst game
-            worst_game_index = np.argmin(game_score)
-            print("log worst game with score", game_score[worst_game_index])
+        # Pick the worst game
+        worst_game_index = np.argmin(game_score)
+        print("log worst game with score", game_score[worst_game_index])
+        if self.log_replays:
             result["episode_media"]["worst_game"] = copy(
                 result["episode_media"]["replay"][-n_replays:][worst_game_index])
 
-            # store the number of city_tiles of the worst game
-            result["custom_metrics"]["worst_game_city_tiles"] = end_player_city_tiles[worst_game_index]
+        # store the number of city_tiles of the worst game
+        result["custom_metrics"]["worst_game_city_tiles"] = end_player_city_tiles[worst_game_index]
 
-            # Delete all other replays
+        # Delete all other replays
+        if self.log_replays:
             result["episode_media"]["replay"] = []
 
-        # Rename metric game_won_mean to win_rate and remove other metrics
+        # Rename metric game_won_mean to win_rate and remove max and min metrics
         if "game_won_mean" in result["custom_metrics"]:
             result["custom_metrics"]["win_rate"] = result["custom_metrics"]["game_won_mean"]
 

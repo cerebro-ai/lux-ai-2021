@@ -31,6 +31,10 @@ def run(cfg: DictConfig):
     ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
+    # Custom class to inject cfg
+    class Callbacks(MetricsCallbacks):
+        log_replays = cfg["metrics"].get("log_replays", False)
+
     def policy_mapping_fn(agent_id, episode, worker, **kwargs):
         if "ct_" in agent_id:
             return "city_tile_policy"
@@ -56,7 +60,7 @@ def run(cfg: DictConfig):
             **cfg.env.env_config,
             "wandb": cfg.wandb
         },
-        "callbacks": MetricsCallbacks,
+        "callbacks": Callbacks,
         **cfg.algorithm.config,
         "framework": "torch",
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
