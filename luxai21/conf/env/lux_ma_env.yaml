@@ -25,4 +25,4 @@ env_config:
 
   save_replay:
     local_every_x: 1
-    wandb_every_x: 1
+    wandb_every_x: 0
