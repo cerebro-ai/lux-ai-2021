@@ -103,6 +103,8 @@ class MetricsCallbacks(DefaultCallbacks):
             game_score = 1000 * np.array(result["hist_stats"]["end_player_city_tiles"][-n_replays:]) + np.array(
                 result["hist_stats"]["end_player_worker"][-n_replays:])
 
+            end_player_city_tiles = result["hist_stats"]["end_player_city_tiles"][-n_replays:]
+
             # Pick the best game
             best_game_index = np.argmax(game_score)
             print("log best game with score", game_score[best_game_index])
@@ -110,8 +112,7 @@ class MetricsCallbacks(DefaultCallbacks):
             result["episode_media"]["best_game"] = copy(result["episode_media"]["replay"][-n_replays:][best_game_index])
 
             # store the number of city_tiles of the best game
-            result["custom_metrics"]["best_game_city_tiles"] = \
-                result["hist_stats"]["end_player_city_tiles"][-n_replays:][best_game_index]
+            result["custom_metrics"]["best_game_city_tiles"] = end_player_city_tiles[-n_replays:][best_game_index]
 
             # Pick the worst game
             worst_game_index = np.argmin(game_score)
@@ -120,8 +121,7 @@ class MetricsCallbacks(DefaultCallbacks):
                 result["episode_media"]["replay"][-n_replays:][worst_game_index])
 
             # store the number of city_tiles of the worst game
-            result["custom_metrics"]["worst_game_city_tiles"] = \
-                result["hist_stats"]["end_player_city_tiles"][-n_replays:][worst_game_index]
+            result["custom_metrics"]["worst_game_city_tiles"] = end_player_city_tiles[worst_game_index]
 
             # Delete all other replays
             result["episode_media"]["replay"] = []
