@@ -383,7 +383,6 @@ class WandbLoggerCallback(LoggerCallback):
             self.log_trial_start(trial)
 
         result = _clean_log(result)
-        print("After clean log", result)
         self._trial_queues[trial].put(result)
 
     def log_trial_end(self, trial: "Trial", failed: bool = False):
