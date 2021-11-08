@@ -449,19 +449,21 @@ class LuxMAEnv(MultiAgentEnv):
 
                 # resources (reward not negative)
                 unit: Unit = pieces[piece_id]
-                unit_last_turn = self.last_game_state["teamStates"][team]["units"][unit.id]
-                rewards[piece_id] += self.reward_map["wood_collected"] * max(
-                    unit.cargo["wood"] - unit_last_turn.cargo["wood"],
-                    0
-                )
-                rewards[piece_id] += self.reward_map["coal_collected"] * max(
-                    unit.cargo["coal"] - unit_last_turn.cargo["coal"],
-                    0
-                )
-                rewards[piece_id] += self.reward_map["uranium_collected"] * max(
-                    unit.cargo["uranium"] - unit_last_turn.cargo["uranium"],
-                    0
-                )
+                # check that the unit also existed last turn
+                if unit.id in self.last_game_state["teamStates"][team]["units"].keys():
+                    unit_last_turn = self.last_game_state["teamStates"][team]["units"][unit.id]
+                    rewards[piece_id] += self.reward_map["wood_collected"] * max(
+                        unit.cargo["wood"] - unit_last_turn.cargo["wood"],
+                        0
+                    )
+                    rewards[piece_id] += self.reward_map["coal_collected"] * max(
+                        unit.cargo["coal"] - unit_last_turn.cargo["coal"],
+                        0
+                    )
+                    rewards[piece_id] += self.reward_map["uranium_collected"] * max(
+                        unit.cargo["uranium"] - unit_last_turn.cargo["uranium"],
+                        0
+                    )
 
             # Collected resources
             rewards[piece_id] += self.reward_map["global_wood_collected"] * \
@@ -527,15 +529,23 @@ class LuxMAEnv(MultiAgentEnv):
 
         for city in self.game_state.cities.values():
             for city_cell in city.city_cells:
-                piece_id = get_piece_id(city.team, city_cell.city_tile)
+                piece_id = self.get_piece_id(city.team, city_cell.city_tile)
                 pieces[piece_id] = city_cell.city_tile
 
         for team in [Constants.TEAM.A, Constants.TEAM.B]:
             for unit in self.game_state.state["teamStates"][team]["units"].values():
-                piece_id = get_piece_id(team, unit)
+                piece_id = self.get_piece_id(team, unit)
                 pieces[piece_id] = unit
 
         return pieces
+
+    def get_piece_id(self, team: int, piece: Union[CityTile, Unit]):
+        seed = self.game_state.configs["seed"]
+        if hasattr(piece, "cargo"):
+            # is unit
+            return f"p{team}_{piece.id}_{seed}"
+        else:
+            return f"p{team}_ct_{piece.get_tile_id()}_{seed}"
 
     @staticmethod
     def piece_id_to_unit_id(piece_id):
