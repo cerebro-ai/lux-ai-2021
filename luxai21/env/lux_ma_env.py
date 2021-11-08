@@ -1,21 +1,19 @@
+import copy
 import datetime
 import json
 import os.path
 import random
 from functools import partial
 from pathlib import Path
+from typing import List, Mapping, Tuple, Any
 
 import gym.spaces
-import numpy as np
-from typing import List, Mapping, Tuple, Any, Union
-import copy
-import wandb
 from gym.spaces import Discrete, Dict, Box
+from hydra import initialize, compose
 from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction, SpawnWorkerAction, SpawnCartAction, \
-    ResearchAction, Action
+    ResearchAction
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
-from pettingzoo import ParallelEnv
-from pettingzoo.utils import agent_selector
+from omegaconf import open_dict
 from ray.rllib import MultiAgentEnv
 
 from luxai21.env.render_utils import print_map
@@ -73,7 +71,7 @@ class LuxMAEnv(MultiAgentEnv):
         # rendering
         self.game_state.start_replay_logging(stateful=True)
         self.last_game_state: Optional[Any] = None
-        self.last_game_stats: Optional[Any] = None# to derive rewards per turn
+        self.last_game_stats: Optional[Any] = None  # to derive rewards per turn
         self.last_game_cities: Optional[Dict] = None
 
         self.env_config = {
@@ -105,40 +103,21 @@ class LuxMAEnv(MultiAgentEnv):
             SpawnCartAction,
             ResearchAction
         ]
-        if "reward" not in config:
-            config["reward"] = {}
 
         self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
-        self.reward_map = {
+        self.reward_map = dict(config["reward"])
+
+        self.action_reward_key = {
             # unit actions
-            Constants.ACTIONS.MOVE: config["reward"].get("move", 0),
-            Constants.ACTIONS.TRANSFER: config["reward"].get("transfer", 0),
-            Constants.ACTIONS.BUILD_CITY: config["reward"].get("build_city", 1),
-            Constants.ACTIONS.PILLAGE: config["reward"].get("pillage", 0),
+            Constants.ACTIONS.MOVE: "move",
+            Constants.ACTIONS.TRANSFER: "transfer",
+            Constants.ACTIONS.BUILD_CITY: "build_city",
+            Constants.ACTIONS.PILLAGE: "pillage",
 
             # city tile actions
-            Constants.ACTIONS.BUILD_WORKER: config["reward"].get("build_worker", 1),
-            Constants.ACTIONS.BUILD_CART: config["reward"].get("build_cart", 0.1),
-            Constants.ACTIONS.RESEARCH: config["reward"].get("research", 1),
-
-            "TURN_UNIT": config["reward"].get("turn_worker", 0.1),
-            "TURN_CITYTILE": config["reward"].get("turn_citytile", 0.1),
-
-            # THIS REWARD IS APPLIED TO EVERY LIVING WORKER
-            "DEATH_CITY": config["reward"].get("death_city", -1),
-
-            # THIS REWARD IS APPLIED TO EVERY LIVING WORKER AND CITY
-            "WOOD_COLLECTED": config["reward"].get("wood_collected", 0.1),
-            "COAL_COLLECTED": config["reward"].get("coal_collected", 0.2),
-            "URANIUM_COLLECTED": config["reward"].get("uranium_collected", 0.3),
-            "FUEL_GENERATED": config["reward"].get("fuel_generated", 0.2),
-            "RESEARCH_POINTS": config["reward"].get("research_points", 0.1),
-            "COAL_RESEARCHED": config["reward"].get("coal_researched", 2),
-            "URANIUM_RESEARCHED": config["reward"].get("uranium_researched", 5),
-            "CITYTILES_END": config["reward"].get("citytiles_end", 2),
-            "CITYTILES_END_OPPONENT": config["reward"].get("citytiles_end_opponent", -1),
-
-            "WIN": config["reward"].get("win", 10)
+            Constants.ACTIONS.BUILD_WORKER: "build_worker",
+            Constants.ACTIONS.BUILD_CART: "build_cart",
+            Constants.ACTIONS.RESEARCH: "research",
         }
 
         self._cumulative_rewards = dict()
@@ -427,11 +406,13 @@ class LuxMAEnv(MultiAgentEnv):
         is_game_over = self.game_state.match_over()
         winning_team = self.game_state.get_winning_team()
 
-        for piece_id, piece in self.get_pieces().items():
+        pieces = self.get_pieces()
+
+        for piece_id, piece in pieces.items():
             reward = 0
             # Actions
             if piece.last_turn_action is not None:
-                reward = self.reward_map[piece.last_turn_action.action]
+                reward = self.reward_map[self.action_reward_key[piece.last_turn_action.action]]
             rewards[piece_id] = reward
 
         current_city_ids = [city.id for city in self.game_state.cities.values()]
@@ -457,51 +438,67 @@ class LuxMAEnv(MultiAgentEnv):
         # Turn reward & death city
         for piece_id in rewards.keys():
             team = int(piece_id[1])
-            if is_game_over:
-                if team == winning_team:
-                    rewards[piece_id] += self.reward_map["WIN"]
 
             if "ct_" in piece_id:
-                rewards[piece_id] += self.reward_map["TURN_CITYTILE"]
+                rewards[piece_id] += self.reward_map["turn_citytile"]
             else:
-                rewards[piece_id] += self.reward_map["TURN_UNIT"]
+                rewards[piece_id] += self.reward_map["turn_unit"]
 
                 if lost_city[team]:
-                    rewards[piece_id] += self.reward_map["DEATH_CITY"]
+                    rewards[piece_id] += self.reward_map["death_city"]
+
+                # resources (reward not negative)
+                unit: Unit = pieces[piece_id]
+                unit_last_turn = self.last_game_state["teamStates"][team]["units"][unit.id]
+                rewards[piece_id] += self.reward_map["wood_collected"] * max(
+                    unit.cargo["wood"] - unit_last_turn.cargo["wood"],
+                    0
+                )
+                rewards[piece_id] += self.reward_map["coal_collected"] * max(
+                    unit.cargo["coal"] - unit_last_turn.cargo["coal"],
+                    0
+                )
+                rewards[piece_id] += self.reward_map["uranium_collected"] * max(
+                    unit.cargo["uranium"] - unit_last_turn.cargo["uranium"],
+                    0
+                )
 
             # Collected resources
-            rewards[piece_id] += self.reward_map["WOOD_COLLECTED"] * \
+            rewards[piece_id] += self.reward_map["global_wood_collected"] * \
                                  (self.game_state.stats['teamStats'][team]['resourcesCollected']['wood'] -
                                   self.last_game_stats['teamStats'][team]['resourcesCollected']['wood'])
-            rewards[piece_id] += self.reward_map["COAL_COLLECTED"] * \
+            rewards[piece_id] += self.reward_map["global_coal_collected"] * \
                                  (self.game_state.stats['teamStats'][team]['resourcesCollected']['coal'] -
                                   self.last_game_stats['teamStats'][team]['resourcesCollected']['coal'])
-            rewards[piece_id] += self.reward_map["URANIUM_COLLECTED"] * \
+            rewards[piece_id] += self.reward_map["global_uranium_collected"] * \
                                  (self.game_state.stats['teamStats'][team]['resourcesCollected']['uranium'] -
                                   self.last_game_stats['teamStats'][team]['resourcesCollected']['uranium'])
             # Fuel
-            rewards[piece_id] += self.reward_map["FUEL_GENERATED"] * \
+            rewards[piece_id] += self.reward_map["fuel_generated"] * \
                                  (self.game_state.stats['teamStats'][team]['fuelGenerated'] -
                                   self.last_game_stats['teamStats'][team]['fuelGenerated'])
 
             # Research Points
             if not self.last_game_state['teamStates'][team]['researched']['uranium']:
-                rewards[piece_id] += self.reward_map["RESEARCH_POINTS"] * \
+                rewards[piece_id] += self.reward_map["research_points"] * \
                                      (self.game_state.state['teamStates'][team]['researchPoints'] -
                                       self.last_game_state['teamStates'][team]['researchPoints'])
-                if self.game_state.state['teamStates'][team]['researched']['coal']:
-                    rewards[piece_id] += self.reward_map["COAL_RESEARCHED"]
 
-                if self.game_state.state['teamStates'][team]['researched']['uranium']:
-                    rewards[piece_id] += self.reward_map["URANIUM_RESEARCHED"]
+                # Reached coal/uranium research level
+                for resource in ['coal', 'uranium']:
+                    if self.game_state.state['teamStates'][team]['researched'][resource] and not \
+                            self.last_game_state['teamStates'][team]['researched'][resource]:
+                        rewards[piece_id] += self.reward_map[f"{resource}_researched"]
 
             if is_game_over:
                 if team == 0:
-                    rewards[piece_id] += self.reward_map["CITYTILES_END"] * city_tiles_team1
-                    rewards[piece_id] -= self.reward_map["CITYTILES_END_OPPONENT"] * city_tiles_team2
+                    rewards[piece_id] += self.reward_map["citytiles_end"] * city_tiles_team1
+                    rewards[piece_id] -= self.reward_map["citytiles_end_opponent"] * city_tiles_team2
                 else:
-                    rewards[piece_id] += self.reward_map["CITYTILES_END"] * city_tiles_team2
-                    rewards[piece_id] -= self.reward_map["CITYTILES_END_OPPONENT"] * city_tiles_team1
+                    rewards[piece_id] += self.reward_map["citytiles_end"] * city_tiles_team2
+                    rewards[piece_id] -= self.reward_map["citytiles_end_opponent"] * city_tiles_team1
+                if team == winning_team:
+                    rewards[piece_id] += self.reward_map["win"]
 
         team_average_reward = {}
 
@@ -520,8 +517,8 @@ class LuxMAEnv(MultiAgentEnv):
         if self.team_spirit > 0:
             for piece_id in rewards.keys():
                 team = int(piece_id[1])
-                rewards[piece_id] = (1 - self.team_spirit) * rewards[piece_id] + \
-                                    self.team_spirit * team_average_reward[team]
+                rewards[piece_id] = round((1 - self.team_spirit) * rewards[piece_id] + \
+                                          self.team_spirit * team_average_reward[team], 6)
 
         return rewards
 
@@ -539,6 +536,11 @@ class LuxMAEnv(MultiAgentEnv):
                 pieces[piece_id] = unit
 
         return pieces
+
+    @staticmethod
+    def piece_id_to_unit_id(piece_id):
+        # p0_u_1_2348
+        return "_".join(piece_id.split("_")[1:3])
 
     def generate_obs(self):
         _map_player0 = generate_map_state_matrix(self.game_state)
@@ -587,17 +589,8 @@ class LuxMAEnv(MultiAgentEnv):
 
 
 if __name__ == '__main__':
-    config = {
-        "game": {
-            "height": 12,
-            "width": 12,
-            "seed": 21
-        },
-        "env": {
-            "allow_carts": False
-        }
-
-    }
+    initialize(config_path="../conf")
+    config = compose(config_name="config")
 
 
     class NumpyEncoder(json.JSONEncoder):
@@ -607,7 +600,10 @@ if __name__ == '__main__':
             return json.JSONEncoder.default(self, obj)
 
 
-    env = LuxMAEnv(config=config)
+    with open_dict(config):
+        config.env.env_config.game.seed = 123
+
+    env = LuxMAEnv(config=config.env.env_config)
     obs = env.reset()
 
     p_id = None
