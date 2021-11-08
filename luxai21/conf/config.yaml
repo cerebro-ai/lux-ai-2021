@@ -8,10 +8,10 @@ debug: false
 verbose: 1
 
 stop:
-  timesteps_total: 50000
+  timesteps_total: 1000000
 
 checkpoint_at_end: true
-checkpoint_freq: 5
+checkpoint_freq: 30
 
 local_dir: "~/ray_results"
 # restore: <path to checkpoint>
@@ -26,6 +26,6 @@ wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
   group: opponent_testing  # this is just the group for the runs
-  notes: just testing lstms
+  notes: testing multiple opponents with weight updating, larger latent, only 12x12 board size
   tags: [ GNN, Dev, Rllib ]
   mode: online

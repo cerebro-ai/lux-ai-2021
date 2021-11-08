@@ -38,7 +38,7 @@ env_config:
     global_coal_collected: 0.0
     global_uranium_collected: 0.0
     # end rewards
-    win: 10
+    win: 20
     citytiles_end: 1
     citytiles_end_opponent: -1
 
