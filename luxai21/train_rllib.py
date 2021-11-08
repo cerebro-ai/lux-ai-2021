@@ -7,12 +7,14 @@ from ray.rllib.models import ModelCatalog
 from ray.tune import register_env, tune
 from ray.util.client import ray
 
+from luxai21.callbacks.metrics import MetricsCallbacks
 from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
-from luxai21.policy.city_tile import get_city_tile_policy
+from luxai21.policy.city_tile import EagerCityTilePolicy
 from luxai21.policy.worker import get_worker_policy
+from luxai21.policy.random import RandomWorkerPolicy
 
 
 def run(cfg: DictConfig):
@@ -29,17 +31,26 @@ def run(cfg: DictConfig):
     ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
-    def policy_mapping_fn(agent_id, **kwargs):
+    # Custom class to inject cfg
+    class Callbacks(MetricsCallbacks):
+        log_replays = cfg["metrics"].get("log_replays", False)
+
+    def policy_mapping_fn(agent_id, episode, worker, **kwargs):
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
-            return "worker_policy"
+            team = int(agent_id[1])
+            if team == 0:
+                return "worker_policy"
+            else:
+                return "random_worker"
 
     config = {
         "multiagent": {
             "policies": {
                 "worker_policy": get_worker_policy(cfg.model.worker),
-                "city_tile_policy": get_city_tile_policy()
+                "random_worker": RandomWorkerPolicy,
+                "city_tile_policy": EagerCityTilePolicy
             },
             "policy_mapping_fn": policy_mapping_fn,
             "policies_to_train": ["worker_policy"],
@@ -49,6 +60,7 @@ def run(cfg: DictConfig):
             **cfg.env.env_config,
             "wandb": cfg.wandb
         },
+        "callbacks": Callbacks,
         **cfg.algorithm.config,
         "framework": "torch",
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
@@ -57,15 +69,18 @@ def run(cfg: DictConfig):
     if cfg.debug:
 
         trainer = ppo.PPOTrainer(config=config, env="lux_ma_env")
-        for i in range(3):
+        for i in range(10):
             result = trainer.train()
+            print(result)
     else:
         results = tune.run(cfg.algorithm.name,
                            config=config,
                            stop=dict(cfg.stop),
                            verbose=cfg.verbose,
+                           local_dir=cfg.get("local_dir", None),
                            checkpoint_at_end=cfg.checkpoint_at_end,
                            checkpoint_freq=cfg.checkpoint_freq,
+                           restore=cfg.get("restore", None),
                            callbacks=[
                                WandbLoggerCallback(
                                    **cfg.wandb,

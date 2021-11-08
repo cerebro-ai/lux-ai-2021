@@ -53,7 +53,8 @@ class LuxMAEnv(MultiAgentEnv):
         """
         super().__init__()  # does nothing
 
-        wandb.init(**config["wandb"])
+        if config["save_replay"]["wandb_every_x"] > 0:
+            wandb.init(**config["wandb"])
 
         self.config = config
 
@@ -218,7 +219,7 @@ class LuxMAEnv(MultiAgentEnv):
         }
         return result
 
-    def render(self, mode='html', **kwargs):
+    def render(self, mode='html', **kwargs) -> str:
         def get_html(input_html):
             key = "/*window.kaggle*/"
             value = f"""window.kaggle = {json.dumps(input_html, indent=2)};\n\n"""
@@ -254,6 +255,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         elif mode == "cli":
             print_map(self.game_state.map)
+            return ""
 
     def reset(self):
         """
@@ -517,7 +519,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         if self.team_spirit > 0:
             for piece_id in rewards.keys():
-                team = piece_id[1]
+                team = int(piece_id[1])
                 rewards[piece_id] = (1 - self.team_spirit) * rewards[piece_id] + \
                                     self.team_spirit * team_average_reward[team]
 

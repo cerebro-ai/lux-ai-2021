@@ -2,7 +2,7 @@ worker:
   custom_model: worker_model
   custom_model_config:
       use_meta_node: True
-      policy_hidden_dim: 16
+      policy_hidden_dim: 32
       policy_output_dim: 9
       value_hidden_dim: 16
       map_embedding:

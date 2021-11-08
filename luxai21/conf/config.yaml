@@ -1,7 +1,7 @@
 defaults:
   - algorithm: ppo
   - env: lux_ma_env
-  - model: gnn
+  - model: gnn_with_lstm
   - _self_
 
 debug: true
@@ -13,10 +13,16 @@ stop:
 checkpoint_at_end: true
 checkpoint_freq: 5
 
+local_dir: "~/ray_results"
+# restore: <path to checkpoint>
+
+metrics:
+  log_replays: false # since they are broken for now
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: dev  # this is just the group for the runs
+  group: lstm_test_2  # this is just the group for the runs
   notes: just testing lstms
   tags: [ GNN, Dev, Rllib ]
+  mode: online
