@@ -11,6 +11,7 @@ env_config:
   team_spirit: 0
 
   reward:
+    # action rewards
     move: 0
     transfer: 0
     build_city: 1
@@ -18,10 +19,28 @@ env_config:
     build_worker: 1
     build_cart: 0.1
     research: 1
-    turn_worker: 0.1
-    turn_citytile: 0.1
-    death_city: -1
+    # agent specific
+    #                     collected per turn // fuel value
+    wood_collected: 0.001   #  20            // 1
+    coal_collected: 0.01    #   5            // 10
+    uranium_collected: 0.1  #   2            // 40
+    # turn rewards
+    turn_unit: 0.01
+    turn_citytile: 0.01
+    # all_worker
+    death_city: -2
+    # global
+    fuel_generated: 0.001
+    research_points: 0.1
+    coal_researched: 2
+    uranium_researched: 5
+    global_wood_collected: 0.0
+    global_coal_collected: 0.0
+    global_uranium_collected: 0.0
+    # end rewards
     win: 10
+    citytiles_end: 1
+    citytiles_end_opponent: -1
 
   save_replay:
     local_every_x: 0

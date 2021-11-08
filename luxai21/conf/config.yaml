@@ -4,7 +4,7 @@ defaults:
   - model: gnn_with_lstm
   - _self_
 
-debug: false
+debug: true
 verbose: 1
 
 stop:
