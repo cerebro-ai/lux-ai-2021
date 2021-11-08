@@ -16,6 +16,8 @@ checkpoint_freq: 5
 local_dir: "~/ray_results"
 # restore: <path to checkpoint>
 
+metrics:
+  log_replays: false # since they are broken for now
 
 wandb:
   entity: cerebro-ai  # under which account to find project
