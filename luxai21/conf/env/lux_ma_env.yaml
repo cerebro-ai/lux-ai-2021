@@ -30,15 +30,15 @@ env_config:
     # all_worker
     death_city: -2
     # global
-    fuel_generated: 0.001
-    research_points: 0.1
-    coal_researched: 2
-    uranium_researched: 5
+    fuel_generated: 0
+    research_points: 0
+    coal_researched: 0
+    uranium_researched: 0
     global_wood_collected: 0.0
     global_coal_collected: 0.0
     global_uranium_collected: 0.0
     # end rewards
-    win: 20
+    win: 10
     citytiles_end: 1
     citytiles_end_opponent: -1
 
