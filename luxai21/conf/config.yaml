@@ -4,7 +4,7 @@ defaults:
   - model: gnn_with_lstm
   - _self_
 
-debug: true
+debug: false
 verbose: 1
 
 stop:
@@ -17,12 +17,15 @@ local_dir: "~/ray_results"
 # restore: <path to checkpoint>
 
 metrics:
-  log_replays: false # since they are broken for now
+  log_replays: false # since they are broken
+
+weights:
+  win_rate_to_update: 0.6
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: lstm_test_2  # this is just the group for the runs
+  group: opponent_testing  # this is just the group for the runs
   notes: just testing lstms
   tags: [ GNN, Dev, Rllib ]
   mode: online
