@@ -7,8 +7,8 @@ config:
 
   rollout_fragment_length: 360
   train_batch_size: 2880
-  num_sgd_iter: 2
-  lr: 2e-4
+  num_sgd_iter: 3
+  lr: 3e-4
   sgd_minibatch_size: 240
   batch_mode: "truncate_episodes"
 
