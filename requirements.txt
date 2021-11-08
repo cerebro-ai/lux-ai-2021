@@ -17,3 +17,4 @@ configparser~=5.0.2
 omegaconf~=2.1.1
 setuptools~=47.1.0
 hydra-core
+loguru

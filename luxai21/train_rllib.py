@@ -12,7 +12,7 @@ from ray.tune import register_env, tune
 from ray.util.client import ray
 
 from luxai21.callbacks.metrics import MetricsCallback
-from luxai21.callbacks.opponent import UpdateWeightsCallback
+from luxai21.callbacks.weights import UpdateWeightsCallback
 from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
