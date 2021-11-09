@@ -3,6 +3,7 @@ from copy import copy
 from pathlib import Path
 from typing import Dict, Optional
 
+import loguru
 import numpy as np
 import ray
 import wandb
@@ -19,7 +20,7 @@ from wandb import util
 from luxai21.env.lux_ma_env import LuxMAEnv
 
 
-class MetricsCallbacks(DefaultCallbacks):
+class MetricsCallback(DefaultCallbacks):
     log_replays = False
 
     def on_episode_start(self,
@@ -94,54 +95,67 @@ class MetricsCallbacks(DefaultCallbacks):
 
     def on_train_result(self, *, trainer, result: dict, **kwargs):
 
-        n_replays = result["episodes_this_iter"]
+        """
+        If this part throws an KeyError than your rollout_fragment_length is possibly to small
+        and no whole episode was collected and on_epi
+        """
 
-        # compute the score of each game, given end city_tiles and worker
-        game_score = 1000 * np.array(result["hist_stats"]["end_player_city_tiles"][-n_replays:]) + np.array(
-            result["hist_stats"]["end_player_worker"][-n_replays:])
+        try:
 
-        end_player_city_tiles = result["hist_stats"]["end_player_city_tiles"][-n_replays:]
+            n_replays = result["episodes_this_iter"]
 
-        # Pick the best game
-        best_game_index = np.argmax(game_score)
-        print("log best game with score", game_score[best_game_index])
-        if self.log_replays:
-            print("best game replay", result["episode_media"]["replay"][-n_replays:][best_game_index]._path)
-            result["episode_media"]["best_game"] = copy(
-                result["episode_media"]["replay"][-n_replays:][best_game_index])
+            # compute the score of each game, given end city_tiles and worker
+            game_score = 1000 * np.array(result["hist_stats"]["end_player_city_tiles"][-n_replays:]) + np.array(
+                result["hist_stats"]["end_player_worker"][-n_replays:])
 
-        # store the number of city_tiles of the best game
-        result["custom_metrics"]["best_game_city_tiles"] = end_player_city_tiles[-n_replays:][best_game_index]
+            end_player_city_tiles = result["hist_stats"]["end_player_city_tiles"][-n_replays:]
 
-        # Pick the worst game
-        worst_game_index = np.argmin(game_score)
-        print("log worst game with score", game_score[worst_game_index])
-        if self.log_replays:
-            result["episode_media"]["worst_game"] = copy(
-                result["episode_media"]["replay"][-n_replays:][worst_game_index])
+            # Pick the best game
+            best_game_index = np.argmax(game_score)
+            print("log best game with score", game_score[best_game_index])
+            if self.log_replays:
+                print("best game replay", result["episode_media"]["replay"][-n_replays:][best_game_index]._path)
+                result["episode_media"]["best_game"] = copy(
+                    result["episode_media"]["replay"][-n_replays:][best_game_index])
 
-        # store the number of city_tiles of the worst game
-        result["custom_metrics"]["worst_game_city_tiles"] = end_player_city_tiles[worst_game_index]
+            # store the number of city_tiles of the best game
+            result["custom_metrics"]["best_game_city_tiles"] = end_player_city_tiles[-n_replays:][best_game_index]
 
-        # Delete all other replays
-        if self.log_replays:
-            result["episode_media"]["replay"] = []
+            # Pick the worst game
+            worst_game_index = np.argmin(game_score)
+            print("log worst game with score", game_score[worst_game_index])
+            if self.log_replays:
+                result["episode_media"]["worst_game"] = copy(
+                    result["episode_media"]["replay"][-n_replays:][worst_game_index])
 
-        # Rename metric game_won_mean to win_rate and remove max and min metrics
-        if "game_won_mean" in result["custom_metrics"]:
-            result["custom_metrics"]["win_rate"] = result["custom_metrics"]["game_won_mean"]
+            # store the number of city_tiles of the worst game
+            result["custom_metrics"]["worst_game_city_tiles"] = end_player_city_tiles[worst_game_index]
 
-            del result["custom_metrics"]["game_won_mean"]
-            del result["custom_metrics"]["game_won_min"]
-            del result["custom_metrics"]["game_won_max"]
+            # Delete all other replays
+            if self.log_replays:
+                result["episode_media"]["replay"] = []
 
-    def on_learn_on_batch(self, *, policy: Policy, train_batch: SampleBatch,
-                          result: dict, **kwargs) -> None:
-        pass
+            # Rename metric game_won_mean to win_rate and remove max and min metrics
+            if "game_won_mean" in result["custom_metrics"]:
+                result["custom_metrics"]["win_rate"] = result["custom_metrics"]["game_won_mean"]
 
-    def on_postprocess_trajectory(
-            self, *, worker: RolloutWorker, episode: MultiAgentEpisode, agent_id: str,
-            policy_id: str, policies: Dict[str, Policy],
-            postprocessed_batch: SampleBatch,
-            original_batches: Dict[str, SampleBatch], **kwargs):
-        pass
+                del result["custom_metrics"]["game_won_mean"]
+                del result["custom_metrics"]["game_won_min"]
+                del result["custom_metrics"]["game_won_max"]
+
+        except KeyError as e:
+            loguru.logger.warning("Looks like the rollout contains no complete episode. skip logging")
+            loguru.logger.warning(e)
+
+
+def on_learn_on_batch(self, *, policy: Policy, train_batch: SampleBatch,
+                      result: dict, **kwargs) -> None:
+    pass
+
+
+def on_postprocess_trajectory(
+        self, *, worker: RolloutWorker, episode: MultiAgentEpisode, agent_id: str,
+        policy_id: str, policies: Dict[str, Policy],
+        postprocessed_batch: SampleBatch,
+        original_batches: Dict[str, SampleBatch], **kwargs):
+    pass

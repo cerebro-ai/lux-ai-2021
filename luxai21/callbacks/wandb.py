@@ -226,6 +226,8 @@ class _WandbLoggingProcess(Process):
         flat_result = flatten_dict(result, delimiter="/")
 
         for k, v in flat_result.items():
+            if "opponent_worker" in k:
+                continue
             if any(
                     k.startswith(item + "/") or k == item
                     for item in self._to_config):

@@ -25,22 +25,22 @@ env_config:
     coal_collected: 0.01    #   5            // 10
     uranium_collected: 0.1  #   2            // 40
     # turn rewards
-    turn_unit: 0.01
-    turn_citytile: 0.01
+    turn_unit: 0.1
+    turn_citytile: 0.1
     # all_worker
-    death_city: -2
+    death_city: -1
     # global
-    fuel_generated: 0.001
-    research_points: 0.1
-    coal_researched: 2
-    uranium_researched: 5
+    fuel_generated: 0
+    research_points: 0
+    coal_researched: 0
+    uranium_researched: 0
     global_wood_collected: 0.0
     global_coal_collected: 0.0
     global_uranium_collected: 0.0
     # end rewards
     win: 10
-    citytiles_end: 1
-    citytiles_end_opponent: -1
+    citytiles_end: 0
+    citytiles_end_opponent: 0
 
   save_replay:
     local_every_x: 0
