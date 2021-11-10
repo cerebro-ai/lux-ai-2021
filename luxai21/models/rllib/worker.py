@@ -35,9 +35,9 @@ class WorkerModel(TorchModelV2, nn.Module):
                       out_features=self.config["policy_hidden_dim"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy_hidden_dim"],
-                      out_features=self.config["policy_hidden_dim"]),
+                      out_features=self.config["policy_hidden_dim"]//2),
             nn.ELU(),
-            nn.Linear(in_features=self.config["policy_hidden_dim"],
+            nn.Linear(in_features=self.config["policy_hidden_dim"]//2,
                       out_features=self.config["policy_output_dim"])
         )
 
@@ -46,11 +46,10 @@ class WorkerModel(TorchModelV2, nn.Module):
                       out_features=self.config["value_hidden_dim"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["value_hidden_dim"],
-                      out_features=self.config["value_hidden_dim"]),
+                      out_features=self.config["value_hidden_dim"]//2),
             nn.ELU(),
-            nn.Linear(in_features=self.config["value_hidden_dim"],
-                      out_features=1),
-            nn.Tanh()
+            nn.Linear(in_features=self.config["value_hidden_dim"]//2,
+                      out_features=1)
         )
 
     def forward(self, input_dict: Dict[str, TensorType],

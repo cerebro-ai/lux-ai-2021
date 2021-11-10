@@ -2,7 +2,7 @@ from functools import partial
 
 import torch.nn.functional
 from torch import nn, Tensor
-from torch_geometric.nn import GATv2Conv, GCNConv, GatedGraphConv, TransformerConv
+from torch_geometric.nn import GATv2Conv, GCNConv, GatedGraphConv, TransformerConv, GIN, GINConv
 
 
 class MapEmbeddingBlock(nn.Module):
@@ -31,51 +31,51 @@ class MapEmbeddingTower(nn.Module):
 
         self.activation = torch.nn.ELU()
 
-        self.layer1 = GATv2Conv(in_channels=input_dim,
-                                out_channels=hidden_dim,
-                                **kwargs
-                                )
+        self.layer1 = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),
+                nn.ELU()
+            )
+        )
 
-        self.layer2 = GATv2Conv(in_channels=hidden_dim,
-                                out_channels=hidden_dim,
-                                **kwargs
-                                )
+        self.layer2 = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ELU()
+            )
+        )
 
-        self.layer3 = GATv2Conv(in_channels=hidden_dim,
-                                out_channels=hidden_dim,
-                                **kwargs
-                                )
+        self.layer3 = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ELU()
+            )
+        )
 
-        # self.blocks = [
-        #     MapEmbeddingBlock(gnn_module=GNN,
-        #                       hidden_dim=hidden_dim,
-        #                       activation=self.activation,
-        #                       **kwargs
-        #                       )
-        #     for _ in range(num_layers - 2)
-        # ]
-
-        self.last_layer = GCNConv(in_channels=3 * hidden_dim + input_dim,
-                                  out_channels=output_dim,
-                                  **kwargs
-                                  )
+        self.last_layer = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(in_features=3*hidden_dim+input_dim,
+                          out_features=output_dim),
+                nn.ELU()
+            )
+        )
 
     def forward(self, map_tensor: Tensor, edge_index: Tensor):
         # TODO implement skip connections
 
         out1 = self.layer1(map_tensor, edge_index)
-        out1 = self.activation(out1)
+        #out1 = self.activation(out1)
 
         out2 = self.layer2(out1, edge_index)
-        out2 = self.activation(out2)
+        #out2 = self.activation(out2)
 
         out3 = self.layer2(out2, edge_index)
-        out3 = self.activation(out3)
+        #out3 = self.activation(out3)
 
         out_cat = torch.cat([map_tensor, out1, out2, out3], dim=1)
 
         x = self.last_layer(out_cat, edge_index)
-        x = self.activation(x)
+        #x = self.activation(x)
         return x
 
 
