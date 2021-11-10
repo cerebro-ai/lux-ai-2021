@@ -108,6 +108,7 @@ def run(cfg: DictConfig):
                            callbacks=[
                                WandbLoggerCallback(
                                    **cfg.wandb,
+                                   init_config=dict(cfg),
                                    log_config=False)
                            ])
 

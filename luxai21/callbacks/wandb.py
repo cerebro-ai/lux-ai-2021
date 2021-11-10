@@ -38,6 +38,7 @@ The only difference is:
 
 """
 
+
 def _is_allowed_type(obj):
     """Return True if type is allowed for logging to wandb"""
     if isinstance(obj, np.ndarray) and obj.size == 1:
@@ -310,6 +311,7 @@ class WandbLoggerCallback(LoggerCallback):
     def __init__(self,
                  entity: str,
                  project: str,
+                 init_config: dict,
                  group: Optional[str] = None,
                  api_key_file: Optional[str] = None,
                  api_key: Optional[str] = None,
@@ -324,6 +326,7 @@ class WandbLoggerCallback(LoggerCallback):
         self.excludes = excludes or []
         self.log_config = log_config
         self.kwargs = kwargs
+        self.init_config = init_config
 
         self._trial_processes: Dict["Trial", _WandbLoggingProcess] = {}
         self._trial_queues: Dict["Trial", Queue] = {}
@@ -358,7 +361,10 @@ class WandbLoggerCallback(LoggerCallback):
         wandb_group = self.group or trial.trainable_name if trial else None
 
         # remove unpickleable items!
-        config = _clean_log(config)
+        init_config = _clean_log(self.init_config)
+        init_config = flatten_dict(init_config, delimiter=".")
+
+        print(init_config)
 
         wandb_init_kwargs = dict(
             id=trial_id,
@@ -369,7 +375,7 @@ class WandbLoggerCallback(LoggerCallback):
             group=wandb_group,
             entity=self.entity,
             project=wandb_project,
-            config=config)
+            config=init_config)
         wandb_init_kwargs.update(self.kwargs)
 
         self._trial_queues[trial] = Queue()
