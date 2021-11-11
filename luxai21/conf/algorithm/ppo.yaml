@@ -4,6 +4,7 @@ config:
   num_workers: 10
   num_envs_per_worker: 1
 
+  gamma: 0.99
 
   rollout_fragment_length: 360
   train_batch_size: 2880
