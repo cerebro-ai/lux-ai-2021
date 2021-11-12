@@ -55,14 +55,14 @@ config = {
     'algorithm': {
         'name': 'PPO',
         'config': {
-            'num_workers': 1,
+            'num_workers': 3,
             'num_envs_per_worker': 1,
-            'rollout_fragment_length': 16,
-            'train_batch_size': 128,
-            'num_sgd_iter': 3,
+            'rollout_fragment_length': 400,
+            'train_batch_size': 1200,
+            'num_sgd_iter': 30,
             'lr': 0.0002,
             'gamma': 0.995,
-            'sgd_minibatch_size': 128,
+            'sgd_minibatch_size': 600,
             'batch_mode': 'truncate_episodes',
             'entropy_coeff': 1e-5
         }
@@ -104,7 +104,7 @@ config = {
                 'global_coal_collected': 0.0,
                 'global_uranium_collected': 0.0,
                 # end rewards
-                'win': 10
+                'win': 10,
                 'citytiles_end': 2,
                 'citytiles_end_opponent': -1
             },
@@ -128,7 +128,7 @@ config = {
                     'hidden_size': 64,
                     'num_layers': 2,
                     'dropout': 0.0,
-                    'bidirectional': false
+                    'bidirectional': False
                 },
                 'policy': {
                     'hidden_size': 32,
@@ -136,30 +136,34 @@ config = {
                 'value': {
                     'hidden_size': 16
                 }
-                ''
             }
         }
     },
     'debug': False,
     'verbose': 1,
     'stop': {
-        'timesteps_total': 50000
+        'timesteps_total': 100000
     },
     'checkpoint_at_end': True,
     'checkpoint_freq': 5,
     'wandb': {
         'entity': 'cerebro-ai',
         'project': 'luxai21',
-        'group': 'dev',
+        'group': 'kaggle',
         'notes': 'just testing lstms',
         'tags': ['GNN', 'Dev', 'Rllib']
+    },
+    'metrics': {
+        'log_replays': False
+    },
+    'weights': {
+        'win_rate_to_update': 0.75
     }
 }
 
+
 from omegaconf import OmegaConf
-
 config = OmegaConf.create(config)
-
 
 ```
 

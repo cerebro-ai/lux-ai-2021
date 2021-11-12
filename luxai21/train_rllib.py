@@ -48,7 +48,7 @@ def run(cfg: DictConfig):
 
     # Update callback settings
     MetricsCallback.log_replays = cfg["metrics"].get("log_replays", False)
-    UpdateWeightsCallback.win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.6)
+    UpdateWeightsCallback.win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.7)
 
     def policy_mapping_fn(agent_id: str, episode: MultiAgentEpisode, worker: RolloutWorker, **kwargs):
         if "ct_" in agent_id:
