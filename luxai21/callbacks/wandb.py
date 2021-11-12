@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import numpy as np
 
+from loguru import logger as log
+
 from ray import logger
 from ray.tune import Trainable
 from ray.tune.function_runner import FunctionRunner
@@ -331,14 +333,17 @@ class WandbLoggerCallback(LoggerCallback):
         self._trial_processes: Dict["Trial", _WandbLoggingProcess] = {}
         self._trial_queues: Dict["Trial", Queue] = {}
 
+        log.debug("wandb callback initialized")
+
     def setup(self):
         self.api_key_file = os.path.expanduser(self.api_key_path) if \
             self.api_key_path else None
         _set_api_key(self.api_key_file, self.api_key)
 
     def log_trial_start(self, trial: "Trial"):
-        config = trial.config.copy()
+        log.debug(f"starting logging of trial: {trial.trial_id}")
 
+        config = trial.config.copy()
         config.pop("callbacks", None)  # Remove callbacks
 
         exclude_results = self._exclude_results.copy()
@@ -378,12 +383,17 @@ class WandbLoggerCallback(LoggerCallback):
             config=init_config)
         wandb_init_kwargs.update(self.kwargs)
 
+        log.debug("create queue")
         self._trial_queues[trial] = Queue()
+
+        log.debug("create logger process")
         self._trial_processes[trial] = self._logger_process_cls(
             queue=self._trial_queues[trial],
             exclude=exclude_results,
             to_config=self._config_results,
             **wandb_init_kwargs)
+
+        log.debug("start log process")
         self._trial_processes[trial].start()
 
     def log_trial_result(self, iteration: int, trial: "Trial", result: Dict):
