@@ -5,15 +5,15 @@ worker:
       gnn:
         input_dim: 47
         hidden_dim: 64
-        output_dim: 64
+        output_dim: 128 # 3*hidden+input -> output
       lstm:
-        hidden_size: 64
+        hidden_size: 128
         num_layers: 2
         dropout: 0.0
         bidirectional: false
       policy:
-        hidden_size: 32
+        hidden_size: 64
         output_size: 9
       value:
-        hidden_size: 16
+        hidden_size: 32
         # output_size: 1

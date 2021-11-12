@@ -8,7 +8,7 @@ debug: false
 verbose: 1
 
 stop:
-  timesteps_total: 1000000
+  timesteps_total: 500000
 
 checkpoint_at_end: true
 checkpoint_freq: 30
@@ -25,7 +25,7 @@ weights:
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: opponent_testing  # this is just the group for the runs
-  notes: testing multiple opponents with weight updating, larger latent, only 12x12 board size
+  group: gin-test  # this is just the group for the runs
+  notes: testing new model
   tags: [ GNN, Dev, Rllib ]
   mode: online
