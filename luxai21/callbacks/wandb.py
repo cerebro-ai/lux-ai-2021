@@ -208,7 +208,7 @@ class _WandbLoggingProcess(Process):
         self.kwargs = kwargs
 
     def run(self):
-        os.environ["WANDB_START_METHOD"] = "fork"
+        os.environ["WANDB_START_METHOD"] = "thread"
         wandb.init(*self.args, **self.kwargs)
         while True:
             result = self.queue.get()
