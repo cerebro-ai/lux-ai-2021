@@ -33,7 +33,34 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.use_meta_node = self.config["use_meta_node"]
 
         self.map_model = MapEmbeddingTower(**self.config["map_model"])
-        self.mini_map_model = MapEmbeddingTower(**self.config["mini_map_model"])
+
+        # input 21x5x5
+        self.mini_map_model = nn.Sequential(
+            nn.Conv2d(in_channels=21,
+                      out_channels=84,
+                      kernel_size=(3, 3),
+                      groups=21
+                      ),  # 84x3x3
+            nn.BatchNorm2d(num_features=84),
+            nn.ELU(),
+            nn.Conv2d(in_channels=84,
+                      out_channels=168,
+                      kernel_size=(1, 1),
+                      groups=1
+                      ),  # 168x3x3
+            nn.BatchNorm2d(num_features=168),
+            nn.ELU(),
+            nn.Conv2d(in_channels=168,
+                      out_channels=168,
+                      kernel_size=(3, 3),
+                      groups=168
+                      ),  # 168x1x1
+            nn.BatchNorm2d(num_features=168),
+            nn.ELU(),
+            nn.Flatten(),
+            nn.Linear(in_features=168,
+                      out_features=128)
+        )
 
         self.game_state_model = nn.Sequential(
             nn.Linear(in_features=self.config["game_state_model"]["input_dim"],
@@ -42,7 +69,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         )
 
         self.feature_input_size = self.config["map_model"]["output_dim"] \
-                                  + self.config["mini_map_model"]["output_dim"] \
+                                  + 128 \
                                   + self.config["game_state_model"]["output_dim"]
 
         self.feature_model = nn.Sequential(
@@ -91,12 +118,12 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
     def forward(self, input_dict: Dict[str, Dict[str, Tensor]],
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
-        map = input_dict["obs"]["map"]
+        global_map = input_dict["obs"]["map"]
         mini_map = input_dict["obs"]["mini_map"]
         game_state = input_dict["obs"]["game_state"]
 
-        global_strategy = self.embed_map(map, self.map_model)
-        local_strategy = self.embed_map(mini_map, self.mini_map_model)
+        global_strategy = self.embed_map(global_map, self.map_model)
+        local_strategy = self.mini_map_model(torch.permute(mini_map, dims=(0, 3, 1, 2)))
         game_strategy = self.game_state_model(game_state)
 
         strategy = torch.cat([global_strategy, local_strategy, game_strategy], dim=1)
