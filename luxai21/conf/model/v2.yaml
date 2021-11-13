@@ -2,7 +2,6 @@ worker:
   custom_model: worker_model_v2
   custom_model_config:
       use_meta_node: True
-      game_state_size: 28
       map_model:
         input_dim: 21
         hidden_dim: 128
@@ -12,7 +11,7 @@ worker:
         hidden_dim: 128
         output_dim: 256
       game_state_model:
-        input_dim: 28
+        input_dim: 26
         output_dim: 64
       embedding_size: 512
       lstm:

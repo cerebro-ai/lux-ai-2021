@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Tuple
 import wandb
 
 import numpy as np
@@ -340,6 +340,7 @@ def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, con
                     "pos": np.array([cell.pos.x, cell.pos.y]),
                     "action_mask": get_action_mask(game_state, team, None, city_tile, config),
                     "map": map_state,
+                    "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
                     "game_state": game_state_array
                 }
 
@@ -349,9 +350,29 @@ def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, con
             "pos": np.array([unit.pos.x, unit.pos.y]),
             "action_mask": get_action_mask(game_state, team, unit, None, config),
             "map": map_state,
+            "mini_map": generate_mini_map(map_state, (unit.pos.x, unit.pos.y), config["fov"]),
             "game_state": game_state_array
         }
     return states
+
+
+def generate_mini_map(map: np.ndarray, pos: Tuple, fov: int):
+    """
+    Generate a small cutout of the map around the given position with fov steps in each direction
+
+    Args:
+        map: the whole game map with [x,y,features]
+        pos: Position where to center around the mini map
+        fov: Field of view, how many tiles in each direction to include
+
+    """
+    # first we pad the map 0
+    map_padded = np.pad(map, [(fov,), (fov,), (0,)], mode="constant", constant_values=0)
+    x, y = pos[0] + fov, pos[1] + fov
+    # cutout
+    mini_map = map_padded[x - fov: x + fov + 1, y - fov:y + fov + 1, :]
+
+    return mini_map
 
 
 def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile: Optional[CityTile], config):

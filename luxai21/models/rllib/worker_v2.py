@@ -55,11 +55,9 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.policy_branch = nn.Sequential(
             nn.Linear(in_features=self.config["lstm"]["hidden_size"],
                       out_features=self.config["policy"]["hidden_size_1"]),
-            nn.BatchNorm1d(num_features=self.config["policy"]["hidden_size_1"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy"]["hidden_size_1"],
                       out_features=self.config["policy"]["hidden_size_2"]),
-            nn.BatchNorm1d(num_features=self.config["policy"]["hidden_size_2"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy"]["hidden_size_2"],
                       out_features=self.config["policy"]["hidden_size_3"])
@@ -68,18 +66,16 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.value_branch = nn.Sequential(
             nn.Linear(in_features=self.config["lstm"]["hidden_size"],
                       out_features=self.config["policy"]["hidden_size_1"]),
-            nn.BatchNorm1d(num_features=self.config["policy"]["hidden_size_1"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy"]["hidden_size_1"],
                       out_features=self.config["policy"]["hidden_size_2"]),
-            nn.BatchNorm1d(num_features=self.config["policy"]["hidden_size_2"]),
             nn.ELU(),
             nn.Linear(in_features=self.config["policy"]["hidden_size_2"],
                       out_features=1)
         )
 
         self.lstm = nn.LSTM(
-            input_size=self.config["map_"]["output_dim"],
+            input_size=self.config["embedding_size"],
             hidden_size=self.config["lstm"]["hidden_size"],
             batch_first=True
         )
@@ -103,7 +99,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         local_strategy = self.embed_map(mini_map, self.mini_map_model)
         game_strategy = self.game_state_model(game_state)
 
-        strategy = torch.cat([global_strategy, local_strategy, game_strategy])
+        strategy = torch.cat([global_strategy, local_strategy, game_strategy], dim=1)
 
         features = self.feature_model(strategy)
 
@@ -174,7 +170,10 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
 
     @override(ModelV2)
     def value_function(self) -> TensorType:
-        return self.value_branch(self._features)
+        features = torch.reshape(self._features, [-1, self._features.size()[-1]])
+        value = self.value_branch(features)
+        value = value.squeeze(1)
+        return value
 
     def mask_logits(self, logits, action_mask):
         mask_value = torch.finfo(logits.dtype).min
@@ -216,7 +215,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         node_embeddings, _ = large_graph_to_batches(large_map_emb_flat, None, batches)
 
         # now aggregate over the whole graph
-        map_embedding = torch.mean(node_embeddings, dim=1).squeeze()
+        map_embedding = torch.mean(node_embeddings, dim=1).squeeze(1)
 
         return map_embedding
 

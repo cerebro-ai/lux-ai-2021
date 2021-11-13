@@ -1,14 +1,14 @@
 defaults:
   - algorithm: ppo
   - env: lux_ma_env
-  - model: gnn_with_lstm
+  - model: v2
   - _self_
 
 debug: false
 verbose: 1
 
 stop:
-  timesteps_total: 500000
+  timesteps_total: 5000
 
 checkpoint_at_end: true
 checkpoint_freq: 30
@@ -25,7 +25,7 @@ weights:
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: gin-test  # this is just the group for the runs
-  notes: testing new model
+  group: debug  # this is just the group for the runs
+  notes: testing new model v2 architecture
   tags: [ GNN, Dev, Rllib ]
   mode: online
