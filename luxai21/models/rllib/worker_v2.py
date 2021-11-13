@@ -181,9 +181,8 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
 
         policy_features = self.policy_branch(self._features)
         action_logits = self.logits_head(policy_features)
-        masked_logits = self.mask_logits(action_logits, action_mask)
 
-        return masked_logits, [torch.squeeze(h, 0), torch.squeeze(c, 0)]
+        return action_logits, [torch.squeeze(h, 0), torch.squeeze(c, 0)]
 
     @override(ModelV2)
     def get_initial_state(self) -> Union[List[np.ndarray], List[TensorType]]:
