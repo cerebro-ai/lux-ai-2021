@@ -486,3 +486,12 @@ if __name__ == '__main__':
     if use_wandb:
         wandb.log({"LuxEnv": wandb.Html(env.render("html"), inject=False)})
     print(env.turn)
+
+    config = {
+        'algorithm': "{'name': 'PPO', 'config': {'num_workers': 4, 'num_envs_per_worker': 1, 'gamma': 0.99, 'rollout_fragment_length': 256, 'train_batch_size': 1024, 'num_sgd_iter': 10, 'lr': 0.0002, 'sgd_minibatch_size': 256, 'batch_mode': 'complete_episodes', 'entropy_coeff': 3e-05}}",
+        'env': "{'env': 'lux_ma_env', 'env_config': {'game': {'height': 12, 'width': 12}, 'env': {'allow_carts': False, 'fov': 2}, 'team_spirit': 0, 'reward': {'move': 0, 'transfer': 0, 'build_city': 1, 'pillage': 0, 'build_worker': 1, 'build_cart': 0.1, 'research': 1, 'wood_collected': 0.0, 'coal_collected': 0.0, 'uranium_collected': 0.0, 'turn_unit': 0.1, 'turn_citytile': 0.1, 'death_city': -1, 'fuel_generated': 0, 'research_points': 0, 'coal_researched': 0, 'uranium_researched': 0, 'global_wood_collected': 0.0, 'global_coal_collected': 0.0, 'global_uranium_collected': 0.0, 'win': 10, 'citytiles_end': 0, 'citytiles_end_opponent': 0}, 'save_replay': {'local_every_x': 0, 'wandb_every_x': 0}}}",
+        'model': "{'worker': {'custom_model': 'worker_model_v2', 'custom_model_config': {'use_meta_node': True, 'map_model': {'input_dim': 21, 'hidden_dim': 128, 'output_dim': 256}, 'mini_map_model': {'input_dim': 21, 'hidden_dim': 128, 'output_dim': 256}, 'game_state_model': {'input_dim': 26, 'output_dim': 64}, 'embedding_size': 512, 'lstm': {'hidden_size': 512}, 'policy': {'hidden_size_1': 128, 'hidden_size_2': 32, 'hidden_size_3': 16, 'output_size': 9}, 'value': {'hidden_size_1': 128, 'hidden_size_2': 32}}}}",
+        'debug': False, 'verbose': 1, 'stop': "{'timesteps_total': 5000}", 'checkpoint_at_end': True,
+        'checkpoint_freq': 30, 'local_dir': '~/ray_results', 'metrics': "{'log_replays': False}",
+        'weights': "{'win_rate_to_update': 0.7}",
+        'wandb': "{'entity': 'cerebro-ai', 'project': 'luxai21', 'group': 'debug', 'notes': 'testing new model v2 architecture', 'tags': ['GNN', 'Dev', 'Rllib'], 'mode': 'online'}"}

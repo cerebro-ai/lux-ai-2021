@@ -1,28 +1,11 @@
 from loguru import logger
-import tempfile
-from copy import copy
-from pathlib import Path
-from typing import Dict, Optional
 
-import numpy as np
-import ray
-import wandb
-from ray import tune
 from ray.rllib.agents import Trainer
 from ray.rllib.agents.callbacks import DefaultCallbacks
-from ray.rllib.env import BaseEnv
-from ray.rllib.evaluation import RolloutWorker, MultiAgentEpisode
-from ray.rllib.policy import Policy
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.utils.typing import PolicyID
-from ray.tune import Callback
-from wandb import util
-
-from luxai21.env.lux_ma_env import LuxMAEnv
 
 
 class UpdateWeightsCallback(DefaultCallbacks):
-    win_rate_to_rotate = 0.6
+    win_rate_to_rotate = 0.7
 
     def on_train_result(self, *, trainer: Trainer, result: dict, **kwargs) -> None:
         try:

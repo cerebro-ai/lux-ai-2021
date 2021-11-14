@@ -74,11 +74,6 @@ class LuxMAEnv(MultiAgentEnv):
         self.last_game_stats: Optional[Any] = None  # to derive rewards per turn
         self.last_game_cities: Optional[Dict] = None
 
-        self.env_config = {
-            "allow_carts": False
-        }
-        self.env_config.update(self.env_config)
-
         self.agents = []
 
         self.observation_space = self.worker_observation_space()

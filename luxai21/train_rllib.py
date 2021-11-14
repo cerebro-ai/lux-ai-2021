@@ -17,6 +17,7 @@ from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
+from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
 from luxai21.policy.city_tile import EagerCityTilePolicy
 from luxai21.policy.worker import get_worker_policy
 from luxai21.policy.random import RandomWorkerPolicy
@@ -44,6 +45,7 @@ def run(cfg: DictConfig):
 
     # MODEL
     ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
+    ModelCatalog.register_custom_model("worker_model_v2", WorkerLSTMModelV2)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
     # Update callback settings
@@ -68,10 +70,10 @@ def run(cfg: DictConfig):
     config = {
         "multiagent": {
             "policies": {
-                "player_worker": get_worker_policy(cfg.model.worker),
-                "opponent_worker_1": get_worker_policy(cfg.model.worker),
-                "opponent_worker_2": get_worker_policy(cfg.model.worker),
-                "opponent_worker_3": get_worker_policy(cfg.model.worker),
+                "player_worker": get_worker_policy(cfg),
+                "opponent_worker_1": get_worker_policy(cfg),
+                "opponent_worker_2": get_worker_policy(cfg),
+                "opponent_worker_3": get_worker_policy(cfg),
                 "city_tile_policy": EagerCityTilePolicy
             },
             "policy_mapping_fn": policy_mapping_fn,
