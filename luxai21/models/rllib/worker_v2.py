@@ -92,12 +92,12 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
 
         self.value_branch = nn.Sequential(
             nn.Linear(in_features=self.config["lstm"]["hidden_size"],
-                      out_features=self.config["policy"]["hidden_size_1"]),
+                      out_features=self.config["value"]["hidden_size_1"]),
             nn.ELU(),
-            nn.Linear(in_features=self.config["policy"]["hidden_size_1"],
-                      out_features=self.config["policy"]["hidden_size_2"]),
+            nn.Linear(in_features=self.config["value"]["hidden_size_1"],
+                      out_features=self.config["value"]["hidden_size_2"]),
             nn.ELU(),
-            nn.Linear(in_features=self.config["policy"]["hidden_size_2"],
+            nn.Linear(in_features=self.config["value"]["hidden_size_2"],
                       out_features=1)
         )
 
@@ -111,7 +111,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.logits_head = SlimFC(
             in_size=self.config["policy"]["hidden_size_3"],
             out_size=self.config["policy"]["output_size"],
-            activation_fn=nn.ELU,
+            activation_fn=None,
             initializer=torch.nn.init.xavier_uniform_)
 
     @override(RecurrentNetwork)
