@@ -59,23 +59,16 @@ class BasicCityTilePolicy(Policy):
         return actions, state_batches, {}
 
 
-fov = 2
-
 EagerCityTilePolicy = PolicySpec(
     policy_class=BasicCityTilePolicy,
     action_space=spaces.Discrete(4),
     observation_space=spaces.Dict(
-        **{'map': spaces.Box(shape=(12, 12, 21),
+        **{'map': spaces.Box(shape=(12, 12, 10),
                              dtype=np.float64,
                              low=-float('inf'),
                              high=float('inf')
                              ),
-           'mini_map': spaces.Box(shape=(2 * fov + 1, 2 * fov + 1, 21),
-                                  dtype=np.float64,
-                                  low=-float('inf'),
-                                  high=float('inf')
-                                  ),
-           'game_state': spaces.Box(shape=(26,),
+           'game_state': spaces.Box(shape=(3,),
                                     dtype=np.float64,
                                     low=float('-inf'),
                                     high=float('inf')

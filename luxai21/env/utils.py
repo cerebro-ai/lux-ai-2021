@@ -291,7 +291,7 @@ def generate_simple_map_obs(game_state: Game, team: int = 0):
     team_offset = 3
 
     h, w = game_state.map.height, game_state.map.width
-    obs = np.zeros((w, h, n_features), dtype="float")
+    obs = np.zeros((w, h, n_features), dtype=np.float64)
     for row in game_state.map.map:
         for cell in row:
             x, y = cell.pos.x, cell.pos.y
@@ -331,7 +331,7 @@ def generate_simple_game_state_obs(game_state: Game, team: int = 0):
     1. Night (bool)
 
     """
-    obs = np.ndarray((3,), dtype=float)
+    obs = np.ndarray((3,), dtype=np.float64)
     turn = game_state.state["turn"]
 
     obs[0] = turn / 360
@@ -435,7 +435,7 @@ def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, con
                     "pos": np.array([cell.pos.x, cell.pos.y]),
                     "action_mask": get_action_mask(game_state, team, None, city_tile, config),
                     "map": append_position_layer(map_state, city_tile),
-                    "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
+                    # "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
                     "game_state": game_state_array
                 }
 
@@ -445,7 +445,6 @@ def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, con
             "pos": np.array([unit.pos.x, unit.pos.y]),
             "action_mask": get_action_mask(game_state, team, unit, None, config),
             "map": append_position_layer(map_state, unit),
-            "mini_map": generate_mini_map(map_state, (unit.pos.x, unit.pos.y), config["fov"]),
             "game_state": game_state_array
         }
     return states

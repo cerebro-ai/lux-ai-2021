@@ -2,24 +2,22 @@ worker:
   custom_model: worker_model_v2
   custom_model_config:
       use_meta_node: True
-      map_model:
-        input_dim: 21
-        hidden_dim: 128
-        output_dim: 256 # 3*hidden+input -> output
-      mini_map_model:
-        output_dim: 128
+      map:
+        num_filters: 64
+        num_blocks: 4
       game_state_model:
-        input_dim: 26
-        output_dim: 64
-      embedding_size: 512
+        input_dim: 3
+        hidden_dim: 8
+        output_dim: 4
+      embedding_size: 128
       lstm:
-        hidden_size: 512
+        hidden_size: 128
       policy:
-        hidden_size_1: 128
+        hidden_size_1: 64
         hidden_size_2: 32
         hidden_size_3: 16
         output_size: 9
       value:
-        hidden_size_1: 128
-        hidden_size_2: 32
+        hidden_size_1: 64
+        hidden_size_2: 16
         # output_size: 1

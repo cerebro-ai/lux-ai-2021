@@ -14,6 +14,60 @@ from torch import nn, Tensor, TensorType
 from luxai21.models.gnn.map_embedding import MapEmbeddingTower
 from luxai21.models.gnn.utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
 
+# Small neural nets with PyTorch
+
+import torch.nn.functional as F
+
+
+class Conv(nn.Module):
+    def __init__(self, filters0, filters1, kernel_size, bn=False):
+        super().__init__()
+        self.conv = nn.Conv2d(filters0, filters1, kernel_size, stride=1, padding=kernel_size // 2, bias=False)
+        self.bn = None
+        if bn:
+            self.bn = nn.BatchNorm2d(filters1)
+
+    def forward(self, x):
+        h = self.conv(x)
+        if self.bn is not None:
+            h = self.bn(h)
+        return h
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, filters):
+        super().__init__()
+        self.conv = Conv(filters, filters, 3, True)
+
+    def forward(self, x):
+        return F.relu(x + (self.conv(x)))
+
+
+class Representation(nn.Module):
+    ''' Conversion from observation to inner abstract state '''
+
+    def __init__(self, input_shape, num_filters, num_blocks):
+        super().__init__()
+        self.input_shape = input_shape
+        self.board_size = self.input_shape[1] * self.input_shape[2]
+
+        self.layer0 = Conv(self.input_shape[0], num_filters, 3, bn=True)
+        self.blocks = nn.ModuleList([ResidualBlock(num_filters) for _ in range(num_blocks)])
+
+    def forward(self, x):
+        h = F.relu(self.layer0(x))
+        for block in self.blocks:
+            h = block(h)
+        # h = (b, filters, 12, 12)
+        h, _ = torch.max(torch.reshape(h, (h.size(0), h.size(1), -1)), dim=2)
+        return h
+
+    def inference(self, x):
+        self.eval()
+        with torch.no_grad():
+            rp = self(x)
+        return rp
+
 
 class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
     """An LSTM wrapper serving as an interface for ModelV2s that set use_lstm.
@@ -32,44 +86,20 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.config = model_config["custom_model_config"]
         self.use_meta_node = self.config["use_meta_node"]
 
-        self.map_model = MapEmbeddingTower(**self.config["map_model"])
-
-        # input 21x5x5
-        self.mini_map_model = nn.Sequential(
-            nn.Conv2d(in_channels=21,
-                      out_channels=84,
-                      kernel_size=(3, 3),
-                      groups=21
-                      ),  # 84x3x3
-            nn.BatchNorm2d(num_features=84),
-            nn.ELU(),
-            nn.Conv2d(in_channels=84,
-                      out_channels=168,
-                      kernel_size=(1, 1),
-                      groups=1
-                      ),  # 168x3x3
-            nn.BatchNorm2d(num_features=168),
-            nn.ELU(),
-            nn.Conv2d(in_channels=168,
-                      out_channels=168,
-                      kernel_size=(3, 3),
-                      groups=168
-                      ),  # 168x1x1
-            nn.BatchNorm2d(num_features=168),
-            nn.ELU(),
-            nn.Flatten(),
-            nn.Linear(in_features=168,
-                      out_features=128)
-        )
+        self.map_model = Representation(input_shape=(10, 12, 12),
+                                        num_filters=self.config["map"]["num_filters"],
+                                        num_blocks=self.config["map"]["num_blocks"]
+                                        )
 
         self.game_state_model = nn.Sequential(
             nn.Linear(in_features=self.config["game_state_model"]["input_dim"],
+                      out_features=self.config["game_state_model"]["hidden_dim"]),
+            nn.ELU(),
+            nn.Linear(in_features=self.config["game_state_model"]["hidden_dim"],
                       out_features=self.config["game_state_model"]["output_dim"]),
-            nn.ELU()
         )
 
-        self.feature_input_size = self.config["map_model"]["output_dim"] \
-                                  + 128 \
+        self.feature_input_size = self.config["map"]["num_filters"] \
                                   + self.config["game_state_model"]["output_dim"]
 
         self.feature_model = nn.Sequential(
@@ -119,14 +149,12 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
         global_map = input_dict["obs"]["map"]
-        mini_map = input_dict["obs"]["mini_map"]
         game_state = input_dict["obs"]["game_state"]
 
-        global_strategy = self.embed_map(global_map, self.map_model)
-        local_strategy = self.mini_map_model(torch.permute(mini_map, dims=(0, 3, 1, 2)))
+        global_strategy = self.map_model(torch.permute(global_map, dims=(0, 3, 1, 2)))
         game_strategy = self.game_state_model(game_state)
 
-        strategy = torch.cat([global_strategy, local_strategy, game_strategy], dim=1)
+        strategy = torch.cat([global_strategy, game_strategy], dim=1)
 
         features = self.feature_model(strategy)
 

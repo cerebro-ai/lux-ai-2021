@@ -8,7 +8,7 @@ debug: false
 verbose: 1
 
 stop:
-  timesteps_total: 5000
+  timesteps_total: 50000
 
 checkpoint_at_end: true
 checkpoint_freq: 30
@@ -21,11 +21,12 @@ metrics:
 
 weights:
   win_rate_to_update: 0.7
+  self_play: true # will only play against itself
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
   group: debug  # this is just the group for the runs
-  notes: testing new model v2 architecture
+  notes: testing simple obs
   tags: [ GNN, Dev, Rllib ]
   mode: online

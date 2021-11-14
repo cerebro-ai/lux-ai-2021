@@ -5,21 +5,15 @@ from ray.rllib.policy.policy import PolicySpec
 
 
 def get_worker_policy(config):
-    fov = config.env.env_config.env["fov"]
     return PolicySpec(
         action_space=Discrete(9),
         observation_space=Dict(
-            **{'map': Box(shape=(12, 12, 21),
+            **{'map': Box(shape=(12, 12, 10),
                           dtype=np.float64,
                           low=-float('inf'),
                           high=float('inf')
                           ),
-               'mini_map': Box(shape=(2 * fov + 1, 2 * fov + 1, 21),
-                               dtype=np.float64,
-                               low=-float('inf'),
-                               high=float('inf')
-                               ),
-               'game_state': Box(shape=(26,),
+               'game_state': Box(shape=(3,),
                                  dtype=np.float64,
                                  low=float('-inf'),
                                  high=float('inf')

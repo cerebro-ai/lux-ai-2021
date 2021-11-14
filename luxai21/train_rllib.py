@@ -60,6 +60,9 @@ def run(cfg: DictConfig):
             if team == 0:
                 return "player_worker"
             else:
+                if cfg.weights.self_play:
+                    return "player_worker"
+
                 episode_id = episode.episode_id
                 # use episode_id as seed such that all agents
                 # in one episode are mapped to the same policy
