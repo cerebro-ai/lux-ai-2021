@@ -5,16 +5,13 @@ from typing import Dict, Optional
 
 import loguru
 import numpy as np
-import ray
 import wandb
-from ray import tune
 from ray.rllib.agents.callbacks import DefaultCallbacks
 from ray.rllib.env import BaseEnv
 from ray.rllib.evaluation import RolloutWorker, MultiAgentEpisode
 from ray.rllib.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.typing import PolicyID
-from ray.tune import Callback
 from wandb import util
 
 from luxai21.env.lux_ma_env import LuxMAEnv

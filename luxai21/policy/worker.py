@@ -1,5 +1,6 @@
 import numpy as np
 from gym.spaces import Discrete, Dict, Box
+from omegaconf import OmegaConf
 from ray.rllib.policy.policy import PolicySpec
 
 
@@ -7,12 +8,12 @@ def get_worker_policy(config):
     return PolicySpec(
         action_space=Discrete(9),
         observation_space=Dict(
-            **{'map': Box(shape=(12, 12, 21),
+            **{'map': Box(shape=(12, 12, 10),
                           dtype=np.float64,
                           low=-float('inf'),
                           high=float('inf')
                           ),
-               'game_state': Box(shape=(26,),
+               'game_state': Box(shape=(3,),
                                  dtype=np.float64,
                                  low=float('-inf'),
                                  high=float('inf')
@@ -30,6 +31,6 @@ def get_worker_policy(config):
                                   )}),
         config={
             "model": {
-                **config
+                **OmegaConf.to_container(config.model.worker)
             }
         })

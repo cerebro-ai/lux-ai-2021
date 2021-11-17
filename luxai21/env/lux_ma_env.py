@@ -74,11 +74,6 @@ class LuxMAEnv(MultiAgentEnv):
         self.last_game_stats: Optional[Any] = None  # to derive rewards per turn
         self.last_game_cities: Optional[Dict] = None
 
-        self.env_config = {
-            "allow_carts": False
-        }
-        self.env_config.update(self.env_config)
-
         self.agents = []
 
         self.observation_space = self.worker_observation_space()
@@ -553,8 +548,8 @@ class LuxMAEnv(MultiAgentEnv):
         return "_".join(piece_id.split("_")[1:3])
 
     def generate_obs(self):
-        _map_player0 = generate_map_state_matrix(self.game_state)
-        _map_player1 = switch_map_matrix_player_view(_map_player0)
+        _map_player0 = generate_simple_map_obs(self.game_state, 0)
+        _map_player1 = generate_simple_map_obs(self.game_state, 1)
 
         unit_states_player0 = generate_unit_states(self.game_state, _map_player0, team=0, config=self.env_config)
         unit_states_player1 = generate_unit_states(self.game_state, _map_player1, team=1, config=self.env_config)
@@ -568,12 +563,12 @@ class LuxMAEnv(MultiAgentEnv):
     def observation_spaces(self):
         return {
             piece_id: Dict({
-                'map': Box(shape=(18, self.game_state.map.width, self.game_state.map.height),
+                'map': Box(shape=(self.game_state.map.width, self.game_state.map.height, 9),
                            dtype=np.float32,
                            low=-float('inf'),
                            high=float('inf')
                            ),
-                'game_state': Box(shape=(24,),
+                'game_state': Box(shape=(3,),
                                   dtype=np.float32,
                                   low=float('-inf'),
                                   high=float('inf')
@@ -612,6 +607,8 @@ if __name__ == '__main__':
 
     with open_dict(config):
         config.env.env_config.game.seed = 123
+        config.env.env_config.game.height = 8
+        config.env.env_config.game.width = 8
 
     env = LuxMAEnv(config=config.env.env_config)
     obs = env.reset()
@@ -635,6 +632,8 @@ if __name__ == '__main__':
                     piece_id: int(action_id)
                 }
                 break
+        map_obs = generate_simple_map_obs(game_state=env.game_state, team=0)
+        game_obs = generate_simple_game_state_obs(game_state=env.game_state)
 
         obs, rewards, dones, infos = env.step(actions)
         done = env.game_state.match_over()

@@ -21,9 +21,9 @@ env_config:
     research: 1
     # agent specific
     #                     collected per turn // fuel value
-    wood_collected: 0.0   #  20            // 1
-    coal_collected: 0.0    #   5            // 10
-    uranium_collected: 0.0  #   2            // 40
+    wood_collected: 0.001   #  20            // 1
+    coal_collected: 0.01  #   5            // 10
+    uranium_collected: 0.1  #   2            // 40
     # turn rewards
     turn_unit: 0.1
     turn_citytile: 0.1
@@ -39,7 +39,7 @@ env_config:
     global_uranium_collected: 0.0
     # end rewards
     win: 10
-    citytiles_end: 0
+    citytiles_end: 2
     citytiles_end_opponent: 0
 
   save_replay:
