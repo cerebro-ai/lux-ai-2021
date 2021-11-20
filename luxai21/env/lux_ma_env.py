@@ -3,6 +3,7 @@ import datetime
 import itertools
 import json
 import os.path
+import pickle
 import random
 from functools import partial
 from pathlib import Path
@@ -303,9 +304,9 @@ class LuxMAEnv(MultiAgentEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.last_game_state = {**self.game_state.state}
+        self.last_game_state = pickle.loads(pickle.dumps(self.game_state.state))
         self.last_game_stats = {**self.game_state.stats}
-        self.last_game_cities = copy.deepcopy(self.game_state.cities)
+        self.last_game_cities = pickle.loads(pickle.dumps(self.game_state.cities))
 
         obs = self.generate_obs()
 
@@ -335,28 +336,15 @@ class LuxMAEnv(MultiAgentEnv):
         game_actions = self.translate_actions(actions)
 
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
-        rewards, rewards_list = self.compute_rewards()
+        rewards, rewards_list, dones = self.compute_rewards()
 
-        self.last_game_state = {**self.game_state.state}
-        self.last_game_cities = copy.copy(self.game_state.cities)
+        self.last_game_state = pickle.loads(pickle.dumps(self.game_state.state))
+        self.last_game_cities = pickle.loads(pickle.dumps(self.game_state.cities))
+        self.last_game_stats = {**self.game_state.stats}
 
         observations = self.generate_obs()
 
         infos = {piece_id: {} for piece_id in observations.keys()}
-
-        """
-        For every agent for which we received an action,
-        but it is not any more in observation set done to true
-        """
-        dones = {piece_id: is_game_done for piece_id in observations.keys()}
-        for piece_id in actions.keys():
-            if piece_id not in dones:
-                dones[piece_id] = True
-            if piece_id not in rewards:
-                # last reward
-                rewards[piece_id] = 0
-
-        dones["__all__"] = is_game_done
 
         # QUICK FIX TO RENDER EVERY GAME
         # TODO implement this functionality in logger
@@ -450,7 +438,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         return translated_actions
 
-    def compute_rewards(self) -> Tuple[dict, dict]:
+    def compute_rewards(self) -> Tuple[dict, dict, dict]:
         """
         Compute the rewards for all units for the current turn (given the last turn in self.last_game...)
 
@@ -486,26 +474,32 @@ class LuxMAEnv(MultiAgentEnv):
                                             **self.last_game_state["teamStates"][1]["units"]}
 
         rewards_list = {}
+        dones = {}
 
         # initialize all living units...
         for unit in this_turn_units.values():
             rewards_list[self.get_piece_id(unit.team, unit)] = [("", 0)]
+            dones[self.get_piece_id(unit.team, unit)] = False
 
         # ...and city_tiles
         for city in self.game_state.cities.values():
             for cell in city.city_cells:
                 city_tile = cell.city_tile
                 rewards_list[self.get_piece_id(city.team, city_tile)] = [("", 0)]
+                dones[self.get_piece_id(city.team, city_tile)] = False
 
         # loop over units of the last turn to find all death units
         for unit_id, unit in last_turn_units.items():
             if unit_id not in this_turn_units.keys():
                 # that means unit died last turn
                 rewards_list[self.get_piece_id(unit.team, unit)] = [("death", self.reward_map["death"])]
+                dones[self.get_piece_id(unit.team, unit)] = True
 
         is_game_over = self.game_state.match_over()
-        winning_team = self.game_state.get_winning_team()
+        dones["__all__"] = is_game_over
+        winning_team = self.game_state.get_winning_team() if is_game_over else -1
 
+        # units and city_tiles
         pieces = self.get_pieces()
 
         # ACTION
@@ -515,7 +509,7 @@ class LuxMAEnv(MultiAgentEnv):
             reward = ("no_action", 0)
             if piece.last_turn_action is not None:
                 reward_key = self.action_reward_key[piece.last_turn_action.action]
-                reward = ("action_" + reward_key, self.reward_map[reward_key])
+                reward = (reward_key, self.reward_map[reward_key])
 
             rewards_list[piece_id].append(reward)
 
@@ -629,6 +623,9 @@ class LuxMAEnv(MultiAgentEnv):
         }
 
         for piece_id, reward in rewards_sum.items():
+            if "ct_" in piece_id:
+                # skip city_tiles
+                continue
             team = int(piece_id[1])
             team_size[team] += 1
             total_team_reward[team] += reward
@@ -647,11 +644,14 @@ class LuxMAEnv(MultiAgentEnv):
 
         # zero sum
         for piece_id, reward in rewards_sum.items():
+            if "ct_" in piece_id:
+                # skip city_tiles
+                continue
             team = int(piece_id[1])
             other_team = (team + 1) % 2
             rewards_sum[piece_id] = reward - avg_team_reward[other_team]
 
-        return rewards_sum, rewards_list
+        return rewards_sum, rewards_list, dones
 
     def get_pieces(self):
         pieces = {}
