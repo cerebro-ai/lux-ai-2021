@@ -5,9 +5,10 @@ import os
 import time
 from datetime import datetime
 import random
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional
 
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from luxai21.env.lux_ma_env import LuxMAEnv
@@ -19,7 +20,7 @@ config = {
     },
     "game": {
         "height": 12,
-        "width": 12
+        "width": 12,
     },
     "env": {
         "allow_carts": False
@@ -81,31 +82,66 @@ def get_total_team_rewards(team: int, rewards: Dict):
     return total_reward
 
 
+def set_seed(seed: Optional[int]):
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
+
+
 if __name__ == '__main__':
 
-    print("pid", os.getpid())
+    print("pid", os.getpid(), "\n")
+
+    # set seed
+    seed = None
+    if seed is not None:
+        config["game"]["seed"] = seed
 
     start_time = time.time()
-    n_games = 200
+    n_games = 300
 
     # array with (games, turns)
-    all_rewards = [np.zeros((n_games, 361)), np.zeros((n_games, 361))]
+    # all_rewards = [np.zeros((n_games, 361)), np.zeros((n_games, 361))]
+    all_rewards = []
+
+    team_label = ["random", "no_action"]
 
     # iterate over games
     for i_game in tqdm(range(n_games)):
         obs = env.reset()
+
+        # set seed
+        set_seed(seed)
+
         done = False
         while not done:
             actions = get_actions(obs, get_random_worker_action, get_noop_worker_action)
             obs, rewards, dones, infos, rewards_list = env.env_step(actions)
             turn = env.turn
 
-            all_rewards[0][i_game, turn] = get_total_team_rewards(0, rewards)
-            all_rewards[1][i_game, turn] = get_total_team_rewards(1, rewards)
+            for piece_id, reward_list in rewards_list.items():
+                # piece_id: p0_u_1_2345
+                if "ct_" in piece_id:
+                    continue
+
+                total_reward = sum([value for _, value in reward_list])
+                item = {
+                    "game": i_game,
+                    "turn": turn,
+                    "team_id": int(piece_id[1]),
+                    "team_label": team_label[int(piece_id[1])],
+                    "unit_id": int(piece_id.split("_")[2]),
+                    "total_reward": rewards[piece_id],
+                    **{
+                        "reward_" + key: value for key, value in reward_list if len(key) > 0
+                    }
+                }
+                all_rewards.append(item)
 
             done = dones["__all__"]
 
-    np.save("rewards.npx", all_rewards)
+    df = pd.DataFrame.from_records(all_rewards)
+    df.to_csv("rewards_table.csv")
 
     end_time = time.time()
 
@@ -113,6 +149,8 @@ if __name__ == '__main__':
     print("Games / sec: ", n_games / (end_time - start_time))
     print("* ---- *")
 
-    print("Mean cumulative game reward:")
-    print("Team 0", np.sum(all_rewards[0], 1).mean())
-    print("Team 1", np.sum(all_rewards[1], 1).mean())
+    # compute statistics
+    #
+    # print("Mean cumulative game reward:")
+    # print("Team 0", df.groupby(["team", "game", "piece"]))
+    # print("Team 1", np.sum(all_rewards[1], 1).mean())
