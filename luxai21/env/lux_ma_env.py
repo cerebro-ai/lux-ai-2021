@@ -17,6 +17,7 @@ from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from omegaconf import open_dict
 from ray.rllib import MultiAgentEnv
+from ray.rllib.utils.typing import MultiAgentDict
 
 from luxai21.env.render_utils import print_map
 from luxai21.env.utils import *
@@ -301,7 +302,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         return obs
 
-    def step(self, actions) -> Tuple[dict, dict, dict, dict]:
+    def env_step(self, actions) -> Tuple[dict, dict, dict, dict, dict]:
         """
         Args:
             actions: Dict
@@ -316,7 +317,7 @@ class LuxMAEnv(MultiAgentEnv):
         """
         if not actions:
             self.agents = []
-            return {}, {}, {}, {}
+            return {}, {}, {}, {}, {}
 
         for agent in actions:
             if isinstance(actions[agent], np.ndarray):
@@ -325,7 +326,7 @@ class LuxMAEnv(MultiAgentEnv):
         game_actions = self.translate_actions(actions)
 
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
-        rewards = self.compute_rewards()
+        rewards, rewards_list = self.compute_rewards()
 
         self.last_game_state = copy.deepcopy(self.game_state.state)
         self.last_game_cities = copy.deepcopy(self.game_state.cities)
@@ -368,7 +369,13 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.turn += 1
 
-        return observations, rewards, dones, infos
+        return observations, rewards, dones, infos, rewards_list
+
+    def step(
+            self, action_dict: MultiAgentDict
+    ) -> Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+        obs, rewards, dones, infos, rewards_list = self.env_step(action_dict)
+        return obs, rewards, dones, infos
 
     def translate_actions(self, actions: Mapping[str, int]) -> List:
         """
@@ -434,7 +441,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         return translated_actions
 
-    def compute_rewards(self) -> dict:
+    def compute_rewards(self) -> Tuple[dict, dict]:
         """
         Compute the rewards for all units for the current turn (given the last turn in self.last_game...)
 
@@ -634,7 +641,7 @@ class LuxMAEnv(MultiAgentEnv):
             other_team = (team + 1) % 2
             rewards_sum[piece_id] = reward - avg_team_reward[other_team]
 
-        return rewards_sum
+        return rewards_sum, rewards_list
 
     def get_pieces(self):
         pieces = {}
