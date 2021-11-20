@@ -13,14 +13,6 @@ from luxpythonenv.game.resource import Resource
 from luxpythonenv.game.unit import Unit
 
 
-def get_piece_id(team: int, piece: Union[CityTile, Unit]):
-    if hasattr(piece, "cargo"):
-        # is unit
-        return f"p{team}_{piece.id}_{piece.rand_id}"
-    else:
-        return f"p{team}_ct_{piece.get_tile_id()}_{piece.rand_id}"
-
-
 def find_all_resources(game_state):
     resource_tiles = []
     height = game_state.map.height
@@ -308,7 +300,8 @@ def generate_simple_map_obs(game_state: Game, team: int = 0):
                 obs[x, y, 1 + o] = 1
                 city: City = game_state.cities[city_tile.city_id]
                 # city fuel
-                obs[x, y, 2 + o] = np.clip(city.fuel / 1000, 0, 1)
+                fuel = city.fuel
+                obs[x, y, 2 + o] = np.tanh(city.fuel / 300)  # such that fuel 1000 ~= 1
             if cell.resource:
                 if cell.resource.type == Resource.Types.WOOD:
                     r_o = 0
@@ -319,7 +312,8 @@ def generate_simple_map_obs(game_state: Game, team: int = 0):
                 else:
                     raise ValueError(f"Resource not recognised {cell.resource.type}")
                 # resource
-                obs[x, y, 6 + r_o] = np.clip(cell.resource.amount / 1000, 0, 1)
+                amount = cell.resource.amount
+                obs[x, y, 6 + r_o] = np.tanh(amount / 300)
     return obs
 
 
