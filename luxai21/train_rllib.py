@@ -19,7 +19,7 @@ from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
 from luxai21.policy.city_tile import EagerCityTilePolicy
-from luxai21.policy.worker import get_worker_policy
+from luxai21.policy.worker import get_worker_policy, get_do_nothing_worker_policy
 from luxai21.policy.random import RandomWorkerPolicy
 
 
@@ -39,6 +39,8 @@ def run(cfg: DictConfig):
     else:
         ray.init()
 
+    print("pid", os.getpid())
+
     # ENVIRONMENT
     env_creator = lambda env_config: LuxMAEnv(config=env_config)
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
@@ -49,8 +51,12 @@ def run(cfg: DictConfig):
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
     # Update callback settings
-    MetricsCallback.log_replays = cfg["metrics"].get("log_replays", False)
-    UpdateWeightsCallback.win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.7)
+    class MetricsCallbacks(MetricsCallback):
+        log_replays = cfg["metrics"].get("log_replays", False)
+
+    class WeightsCallback(UpdateWeightsCallback):
+        win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.7)
+        min_steps_between_updates = cfg["weights"].get("min_steps_between_updates", 10)
 
     def policy_mapping_fn(agent_id: str, episode: MultiAgentEpisode, worker: RolloutWorker, **kwargs):
         if "ct_" in agent_id:
@@ -63,6 +69,8 @@ def run(cfg: DictConfig):
                 if cfg.weights.self_play:
                     return "player_worker"
 
+                return "do_nothing_worker"
+
                 episode_id = episode.episode_id
                 # use episode_id as seed such that all agents
                 # in one episode are mapped to the same policy
@@ -74,9 +82,10 @@ def run(cfg: DictConfig):
         "multiagent": {
             "policies": {
                 "player_worker": get_worker_policy(cfg),
-                "opponent_worker_1": get_worker_policy(cfg),
-                "opponent_worker_2": get_worker_policy(cfg),
-                "opponent_worker_3": get_worker_policy(cfg),
+                # "opponent_worker_1": get_worker_policy(cfg),
+                # "opponent_worker_2": get_worker_policy(cfg),
+                # "opponent_worker_3": get_worker_policy(cfg),
+                "do_nothing_worker": get_do_nothing_worker_policy(),
                 "city_tile_policy": EagerCityTilePolicy
             },
             "policy_mapping_fn": policy_mapping_fn,
@@ -88,8 +97,7 @@ def run(cfg: DictConfig):
             "wandb": cfg.wandb
         },
         "callbacks": MultiCallbacks([
-            MetricsCallback,
-            UpdateWeightsCallback
+            MetricsCallbacks,
         ]),
         **cfg.algorithm.config,
         "framework": "torch",
