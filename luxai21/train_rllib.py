@@ -55,7 +55,7 @@ def run(cfg: DictConfig):
         log_replays = cfg["metrics"].get("log_replays", False)
 
     class WeightsCallback(UpdateWeightsCallback):
-        win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.7)
+        win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.75)
         min_steps_between_updates = cfg["weights"].get("min_steps_between_updates", 10)
 
     def policy_mapping_fn(agent_id: str, episode: MultiAgentEpisode, worker: RolloutWorker, **kwargs):
@@ -69,22 +69,23 @@ def run(cfg: DictConfig):
                 if cfg.weights.self_play:
                     return "player_worker"
 
-                return "do_nothing_worker"
-
-                episode_id = episode.episode_id
-                # use episode_id as seed such that all agents
-                # in one episode are mapped to the same policy
-                with temp_seed(episode_id):
-                    opponent_id = np.random.choice([1, 2, 3], p=[3 / 4, 3 / 16, 1 / 16])
-                return "opponent_worker_" + str(opponent_id)
+                if (episode.episode_id % 10) == 0:
+                    return "do_nothing_worker"
+                else:
+                    episode_id = episode.episode_id
+                    # use episode_id as seed such that all agents
+                    # in one episode are mapped to the same policy
+                    with temp_seed(episode_id):
+                        opponent_id = np.random.choice([1, 2, 3], p=[2 / 3, 2 / 9, 1 / 9])
+                    return "opponent_worker_" + str(opponent_id)
 
     config = {
         "multiagent": {
             "policies": {
                 "player_worker": get_worker_policy(cfg),
-                # "opponent_worker_1": get_worker_policy(cfg),
-                # "opponent_worker_2": get_worker_policy(cfg),
-                # "opponent_worker_3": get_worker_policy(cfg),
+                "opponent_worker_1": get_worker_policy(cfg),
+                "opponent_worker_2": get_worker_policy(cfg),
+                "opponent_worker_3": get_worker_policy(cfg),
                 "do_nothing_worker": get_do_nothing_worker_policy(),
                 "city_tile_policy": EagerCityTilePolicy
             },
@@ -98,6 +99,7 @@ def run(cfg: DictConfig):
         },
         "callbacks": MultiCallbacks([
             MetricsCallbacks,
+            WeightsCallback
         ]),
         **cfg.algorithm.config,
         "framework": "torch",
@@ -107,16 +109,16 @@ def run(cfg: DictConfig):
     if cfg.debug:
 
         trainer = ppo.PPOTrainer(config=config, env="lux_ma_env")
-        for i in range(10):
+        for i in range(30):
             result = trainer.train()
     else:
         results = tune.run(cfg.algorithm.name,
                            config=config,
                            stop=dict(cfg.stop),
                            verbose=cfg.verbose,
-                           local_dir=cfg.get("local_dir", None),
+                           local_dir=None,
                            checkpoint_at_end=cfg.checkpoint_at_end,
-                           checkpoint_freq=cfg.checkpoint_freq,
+                           checkpoint_freq=cfg["checkpoint_freq"],
                            restore=cfg.get("restore", None),
                            callbacks=[
                                WandbLoggerCallback(

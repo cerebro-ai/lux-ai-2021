@@ -4,7 +4,7 @@ worker:
       use_meta_node: True
       map:
         num_filters: 64
-        num_blocks: 4
+        num_blocks: 5
       game_state_model:
         input_dim: 3
         hidden_dim: 8

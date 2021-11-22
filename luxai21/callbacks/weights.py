@@ -15,8 +15,8 @@ class UpdateWeightsCallback(DefaultCallbacks):
             logger.warning("no win_rate. skip opponents callback")
             return
 
-        if not hasattr(trainer, "min_steps_between_updates"):
-            trainer.steps_between_updates = 0
+        if not hasattr(trainer, "steps_between_updates"):
+            trainer.steps_between_updates = self.min_steps_between_updates
         else:
             if trainer.steps_between_updates > 0:
                 trainer.steps_between_updates = trainer.steps_between_updates - 1
@@ -36,7 +36,9 @@ class UpdateWeightsCallback(DefaultCallbacks):
                         else:
                             # rank N gets weights from N-1 and so on
                             source_policy = f"opponent_worker_{rank - 1}"
-                        new_weights[policy] = current_weights[source_policy]
+                        new_weights[policy] = {
+                            k: v.copy() for k, v in current_weights[source_policy].items()
+                        }
                         logger.debug(f"Move weights: {source_policy} -> {policy}")
                     else:
                         new_weights[policy] = current_weights[policy]

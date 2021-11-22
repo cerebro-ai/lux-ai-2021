@@ -132,12 +132,12 @@ class LuxMAEnv(MultiAgentEnv):
             "research": 1,
 
             # agent
-            # can also be acquired through transfer
+            # can also be acquired through transfer and lost in the night
             # this is already normalized such that 100 fuel are worth 1.
             "fuel_collected": 1,
             "fuel_dropped_at_city": 1,
 
-            "death": -0.5,
+            "death_before_end": -0.01,  # per turn away from 360
 
             # each turn
             "turn_unit": 0,
@@ -152,7 +152,7 @@ class LuxMAEnv(MultiAgentEnv):
             "uranium_researched": 0,
 
             # end
-            "win": 10,
+            "win": 5,
         }
 
         self.action_reward_key = {
@@ -492,7 +492,8 @@ class LuxMAEnv(MultiAgentEnv):
         for unit_id, unit in last_turn_units.items():
             if unit_id not in this_turn_units.keys():
                 # that means unit died last turn
-                rewards_list[self.get_piece_id(unit.team, unit)] = [("death", self.reward_map["death"])]
+                value = np.minimum((360 - self.turn) * self.reward_map["death_before_end"], 0)
+                rewards_list[self.get_piece_id(unit.team, unit)] = [("death_before_end", value)]
                 dones[self.get_piece_id(unit.team, unit)] = True
 
         is_game_over = self.game_state.match_over()
@@ -643,13 +644,14 @@ class LuxMAEnv(MultiAgentEnv):
                     (1 - self.team_spirit) * reward + self.team_spirit * avg_team_reward[team], 4)
 
         # zero sum
-        for piece_id, reward in rewards_sum.items():
-            if "ct_" in piece_id:
-                # skip city_tiles
-                continue
-            team = int(piece_id[1])
-            other_team = (team + 1) % 2
-            rewards_sum[piece_id] = reward - avg_team_reward[other_team]
+        if self.zero_sum:
+            for piece_id, reward in rewards_sum.items():
+                if "ct_" in piece_id:
+                    # skip city_tiles
+                    continue
+                team = int(piece_id[1])
+                other_team = (team + 1) % 2
+                rewards_sum[piece_id] = reward - avg_team_reward[other_team]
 
         return rewards_sum, rewards_list, dones
 
@@ -672,9 +674,15 @@ class LuxMAEnv(MultiAgentEnv):
         seed = self.game_state.configs["seed"]
         if hasattr(piece, "cargo"):
             # is unit
-            return f"p{team}_{piece.id}_{seed}"
+            if seed is not None:
+                return f"p{team}_{piece.id}_{seed}"
+            else:
+                return f"p{team}_{piece.id}_0"
         else:
-            return f"p{team}_ct_{piece.get_tile_id()}_{seed}"
+            if seed is not None:
+                return f"p{team}_ct_{piece.get_tile_id()}_{seed}"
+            else:
+                return f"p{team}_ct_{piece.get_tile_id()}_0"
 
     @staticmethod
     def piece_id_to_unit_id(piece_id):

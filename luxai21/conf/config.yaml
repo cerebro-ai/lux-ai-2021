@@ -5,13 +5,13 @@ defaults:
   - _self_
 
 debug: false
-verbose: 1
+verbose: 0
 
 stop:
-  timesteps_total: 500000
+  timesteps_total: 2000000
 
 checkpoint_at_end: true
-checkpoint_freq: 30
+checkpoint_freq: 15
 
 local_dir: "~/ray_results"
 # restore: <path to checkpoint>
@@ -20,14 +20,14 @@ metrics:
   log_replays: false # since they are broken
 
 weights:
-  win_rate_to_update: 0.5
-  min_steps_betweeen_updates: 10
+  win_rate_to_update: 0.6
+  min_steps_between_updates: 3
   self_play: false # will only play against itself
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
   group: debug  # this is just the group for the runs
-  notes: testing do nothing opponent
+  notes: higher entropy coeff & zero_sum
   tags: [ GNN, Dev, Rllib ]
   mode: online
