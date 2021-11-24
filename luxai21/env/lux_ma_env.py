@@ -152,7 +152,8 @@ class LuxMAEnv(MultiAgentEnv):
             "uranium_researched": 0,
 
             # end
-            "win": 5,
+            "win": 36,
+            "premature_game_end": -0.1,  # per turn away from 360
         }
 
         self.action_reward_key = {
@@ -604,7 +605,16 @@ class LuxMAEnv(MultiAgentEnv):
             # win
             if is_game_over:
                 if team == winning_team:
-                    rewards_list[piece_id].append(("win", self.reward_map["win"]))
+                    value = (self.turn/361) * self.reward_map["win"]
+                    rewards_list[piece_id].append(("win", value))
+
+        # premature game end
+        # if is_game_over:
+        #     for unit_id, unit in {**this_turn_units, **last_turn_units}.items():
+        #         piece_id = self.get_piece_id(unit.team, unit)
+        #         value = (360 - self.turn) * self.reward_map["premature_game_end"]
+        #         rewards_list[piece_id].append(("premature_game_end", value))
+
 
         rewards_sum = {}
         for piece_id, reward_list in rewards_list.items():
