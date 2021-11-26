@@ -72,7 +72,7 @@ def run(cfg: DictConfig):
                 if cfg.weights.self_play:
                     return "player_worker"
 
-                if (episode.episode_id % 10) == 0:
+                if (episode.episode_id % 999) == 0:
                     return "do_nothing_worker"
                 else:
                     episode_id = episode.episode_id
