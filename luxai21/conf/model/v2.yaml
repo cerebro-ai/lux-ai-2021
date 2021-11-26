@@ -4,18 +4,18 @@ worker:
       use_meta_node: True
       map:
         num_filters: 64
-        num_blocks: 5
+        num_blocks: 8
       game_state_model:
         input_dim: 3
         hidden_dim: 8
         output_dim: 4
-      embedding_size: 128
+      embedding_size: 256
       lstm:
-        hidden_size: 128
+        hidden_size: 256
       policy:
-        hidden_size_1: 64
-        hidden_size_2: 32
-        hidden_size_3: 16
+        hidden_size_1: 128
+        hidden_size_2: 64
+        hidden_size_3: 24
         output_size: 9
       value:
         hidden_size_1: 64

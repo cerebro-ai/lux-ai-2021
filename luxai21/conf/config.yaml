@@ -8,7 +8,7 @@ debug: false
 verbose: 0
 
 stop:
-  timesteps_total: 2000000
+  timesteps_total: 4000000
 
 checkpoint_at_end: true
 checkpoint_freq: 15
@@ -20,14 +20,14 @@ metrics:
   log_replays: false # since they are broken
 
 weights:
-  win_rate_to_update: 0.6
-  min_steps_between_updates: 3
+  win_rate_to_update: 0.65
+  min_steps_between_updates: 5
   self_play: false # will only play against itself
 
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: debug  # this is just the group for the runs
-  notes: higher entropy coeff & zero_sum
-  tags: [ GNN, Dev, Rllib ]
+  group: alpha  # this is just the group for the runs
+  notes: test run with large batch size and larger v2 model with simple obs
+  tags: [ Dev, Rllib ]
   mode: online

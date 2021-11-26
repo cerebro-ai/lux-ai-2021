@@ -1,16 +1,16 @@
 name: PPO
 
 config:
-  num_workers: 8
+  num_workers: 10
   num_envs_per_worker: 1
 
-  gamma: 0.98
+  gamma: 0.997
 
-  rollout_fragment_length: 800
-  train_batch_size: 6400
-  num_sgd_iter: 3
-  lr: 1e-4
-  sgd_minibatch_size: 1600
+  rollout_fragment_length: 1024
+  train_batch_size: 10240
+  num_sgd_iter: 1
+  lr: 5e-5
+  sgd_minibatch_size: 512
   batch_mode: "truncate_episodes"
 
-  entropy_coeff: 5e-5
+  entropy_coeff: 2e-5
