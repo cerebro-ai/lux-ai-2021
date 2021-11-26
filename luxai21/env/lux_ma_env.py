@@ -117,7 +117,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
 
-        self.zero_sum = True
+        self.zero_sum = False
 
         self.reward_map = {
             # actions worker
@@ -135,25 +135,26 @@ class LuxMAEnv(MultiAgentEnv):
             # can also be acquired through transfer and lost in the night
             # this is already normalized such that 100 fuel are worth 1.
             "fuel_collected": 1,
+            # TODO add discounted fuel_collected_at_night
             "fuel_dropped_at_city": 1,
 
-            "death_before_end": -0.01,  # per turn away from 360
+            "death_before_end": -36,  # per turn away from 360
 
             # each turn
             "turn_unit": 0,
             "living_city_tiles": 0.1,  # get a reward for every living city_tile
 
             # all worker
-            "death_city_tile": -0.5,
+            "death_city_tile": -1,
 
             # global
-            "research_point": 0.05,
+            "research_point": 0,
             "coal_researched": 0,
             "uranium_researched": 0,
 
             # end
             "win": 36,
-            "premature_game_end": -0.1,  # per turn away from 360
+            # "premature_game_end": -0.1,  # per turn away from 360
         }
 
         self.action_reward_key = {
@@ -493,7 +494,7 @@ class LuxMAEnv(MultiAgentEnv):
         for unit_id, unit in last_turn_units.items():
             if unit_id not in this_turn_units.keys():
                 # that means unit died last turn
-                value = np.minimum((360 - self.turn) * self.reward_map["death_before_end"], 0)
+                value = np.minimum((1 - self.turn / 360) * self.reward_map["death_before_end"], 0)
                 rewards_list[self.get_piece_id(unit.team, unit)] = [("death_before_end", value)]
                 dones[self.get_piece_id(unit.team, unit)] = True
 
@@ -605,7 +606,7 @@ class LuxMAEnv(MultiAgentEnv):
             # win
             if is_game_over:
                 if team == winning_team:
-                    value = (self.turn/361) * self.reward_map["win"]
+                    value = (self.turn / 360) * self.reward_map["win"]
                     rewards_list[piece_id].append(("win", value))
 
         # premature game end
@@ -614,7 +615,6 @@ class LuxMAEnv(MultiAgentEnv):
         #         piece_id = self.get_piece_id(unit.team, unit)
         #         value = (360 - self.turn) * self.reward_map["premature_game_end"]
         #         rewards_list[piece_id].append(("premature_game_end", value))
-
 
         rewards_sum = {}
         for piece_id, reward_list in rewards_list.items():
