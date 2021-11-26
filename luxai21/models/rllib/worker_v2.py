@@ -40,6 +40,7 @@ class ResidualBlock(nn.Module):
         self.conv = Conv(filters, filters, 3, True)
 
     def forward(self, x):
+        # TODO scale residual with small constant (0.1/0.2)
         return F.relu(x + (self.conv(x)))
 
 
@@ -148,7 +149,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
     def forward(self, input_dict: Dict[str, Dict[str, Tensor]],
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
-        global_map = input_dict["obs"]["map"]
+        global_map = input_dict["obs"]["map"] # 12x12x10
         game_state = input_dict["obs"]["game_state"]
 
         global_strategy = self.map_model(torch.permute(global_map, dims=(0, 3, 1, 2)))

@@ -312,6 +312,7 @@ def generate_simple_map_obs(game_state: Game, team: int = 0):
                 else:
                     raise ValueError(f"Resource not recognised {cell.resource.type}")
                 # resource
+                # TODO multiply with fuel value
                 amount = cell.resource.amount
                 obs[x, y, 6 + r_o] = np.tanh(amount / 300)
     return obs
@@ -330,6 +331,8 @@ def generate_simple_game_state_obs(game_state: Game, team: int = 0):
 
     obs[0] = turn / 360
     obs[1] = (turn % 40) / 40
+
+    # TODO
     obs[2] = 1 if game_state.is_night() else 0
 
     return obs
