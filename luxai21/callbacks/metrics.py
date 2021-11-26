@@ -20,6 +20,9 @@ from luxai21.env.lux_ma_env import LuxMAEnv
 class MetricsCallback(DefaultCallbacks):
     log_replays = False
 
+    def get_player_team(self, episode):
+        return episode.episode_id % 2
+
     def on_episode_start(self,
                          *,
                          worker: "RolloutWorker",
@@ -44,10 +47,12 @@ class MetricsCallback(DefaultCallbacks):
                         **kwargs) -> None:
         # take the first environment (multiple envs)
         env: LuxMAEnv = base_env.envs[0]
-        player_city_tiles = len(env.game_state.get_teams_citytiles(0))
-        opponent_city_tiles = len(env.game_state.get_teams_citytiles(1))
-        player_worker = len([x for x in env.game_state.get_teams_units(0).values() if x.is_worker()])
-        opponent_worker = len([x for x in env.game_state.get_teams_units(1).values() if x.is_worker()])
+        player_team = self.get_player_team(episode)
+        opponent_team = (player_team + 1) % 2
+        player_city_tiles = len(env.game_state.get_teams_citytiles(player_team))
+        opponent_city_tiles = len(env.game_state.get_teams_citytiles(opponent_team))
+        player_worker = len([x for x in env.game_state.get_teams_units(player_team).values() if x.is_worker()])
+        opponent_worker = len([x for x in env.game_state.get_teams_units(opponent_team).values() if x.is_worker()])
 
         episode.user_data["player_city_tiles"].append(player_city_tiles)
         episode.user_data["opponent_city_tiles"].append(opponent_city_tiles)
@@ -63,6 +68,9 @@ class MetricsCallback(DefaultCallbacks):
                        env_index: Optional[int] = None,
                        **kwargs) -> None:
         env: LuxMAEnv = base_env.envs[0]
+
+        player_team = self.get_player_team(episode)
+
         end_player_city_tiles = episode.user_data["player_city_tiles"][-1]
         end_opponent_city_tiles = episode.user_data["opponent_city_tiles"][-1]
         end_player_worker = episode.user_data["player_worker"][-1]
@@ -73,7 +81,7 @@ class MetricsCallback(DefaultCallbacks):
         episode.hist_data["end_player_worker"] = [end_player_worker]
         episode.hist_data["end_opponent_worker"] = [end_opponent_worker]
 
-        episode.custom_metrics["game_won"] = 1 if env.game_state.get_winning_team() == 0 else 0
+        episode.custom_metrics[f"game_won_{player_team}"] = 1 if env.game_state.get_winning_team() == player_team else 0
 
         if self.log_replays:
             try:
@@ -136,12 +144,19 @@ class MetricsCallback(DefaultCallbacks):
                 result["episode_media"]["replay"] = []
 
             # Rename metric game_won_mean to win_rate and remove max and min metrics
-            if "game_won_mean" in result["custom_metrics"]:
-                result["custom_metrics"]["win_rate"] = result["custom_metrics"]["game_won_mean"]
+            if "game_won_0_mean" in result["custom_metrics"]:
+                result["custom_metrics"]["win_rate_0"] = result["custom_metrics"]["game_won_0_mean"]
 
-                del result["custom_metrics"]["game_won_mean"]
-                del result["custom_metrics"]["game_won_min"]
-                del result["custom_metrics"]["game_won_max"]
+                del result["custom_metrics"]["game_won_0_mean"]
+                del result["custom_metrics"]["game_won_0_min"]
+                del result["custom_metrics"]["game_won_0_max"]
+
+            if "game_won_1_mean" in result["custom_metrics"]:
+                result["custom_metrics"]["win_rate_1"] = result["custom_metrics"]["game_won_1_mean"]
+
+                del result["custom_metrics"]["game_won_1_mean"]
+                del result["custom_metrics"]["game_won_1_min"]
+                del result["custom_metrics"]["game_won_1_max"]
 
         except KeyError as e:
             loguru.logger.warning("Looks like the rollout contains no complete episode. skip logging")

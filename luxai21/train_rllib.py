@@ -59,11 +59,14 @@ def run(cfg: DictConfig):
         min_steps_between_updates = cfg["weights"].get("min_steps_between_updates", 10)
 
     def policy_mapping_fn(agent_id: str, episode: MultiAgentEpisode, worker: RolloutWorker, **kwargs):
+        # p0_u_1_23245
+        # p0_ct_c_2_2_3_2345
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
             team = int(agent_id[1])
-            if team == 0:
+            player_team = (episode.episode_id % 2)
+            if team == player_team:
                 return "player_worker"
             else:
                 if cfg.weights.self_play:

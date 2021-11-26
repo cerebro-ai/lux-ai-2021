@@ -10,7 +10,10 @@ class UpdateWeightsCallback(DefaultCallbacks):
 
     def on_train_result(self, *, trainer: Trainer, result: dict, **kwargs) -> None:
         try:
-            win_rate = result["custom_metrics"]["win_rate"]
+            win_rate_0 = result["custom_metrics"]["win_rate_0"]
+            win_rate_1 = result["custom_metrics"]["win_rate_1"]
+            win_rate = (win_rate_1 + win_rate_0) / 2
+            result["custom_metrics"]["win_rate"] = win_rate
         except KeyError:
             logger.warning("no win_rate. skip opponents callback")
             return
