@@ -326,14 +326,11 @@ def generate_simple_game_state_obs(game_state: Game, team: int = 0):
     1. Night (bool)
 
     """
-    obs = np.ndarray((3,), dtype=np.float64)
+    obs = np.ndarray((2,), dtype=np.float64)
     turn = game_state.state["turn"]
 
     obs[0] = turn / 360
     obs[1] = (turn % 40) / 40
-
-    # TODO
-    obs[2] = 1 if game_state.is_night() else 0
 
     return obs
 

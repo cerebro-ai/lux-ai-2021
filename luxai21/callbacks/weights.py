@@ -2,6 +2,7 @@ from loguru import logger
 
 from ray.rllib.agents import Trainer
 from ray.rllib.agents.callbacks import DefaultCallbacks
+from ray.util.client import ray
 
 
 class UpdateWeightsCallback(DefaultCallbacks):
@@ -46,7 +47,15 @@ class UpdateWeightsCallback(DefaultCallbacks):
                     else:
                         new_weights[policy] = current_weights[policy]
 
+                # drop player worker, because we dont want to set those weights
+                #del new_weights["player_worker"]
                 trainer.set_weights(new_weights)
+
+                #weights = trainer.get_weights())
+                trainer.workers.foreach_worker(
+                    lambda w: w.set_weights(weights=new_weights)
+                )
+
                 trainer.steps_between_updates = self.min_steps_between_updates
 
                 # log current opponent_level

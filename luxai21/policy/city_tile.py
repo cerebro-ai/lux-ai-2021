@@ -68,7 +68,7 @@ EagerCityTilePolicy = PolicySpec(
                              low=-float('inf'),
                              high=float('inf')
                              ),
-           'game_state': spaces.Box(shape=(3,),
+           'game_state': spaces.Box(shape=(2,),
                                     dtype=np.float64,
                                     low=float('-inf'),
                                     high=float('inf')

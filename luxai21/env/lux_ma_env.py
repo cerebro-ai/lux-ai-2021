@@ -117,7 +117,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
 
-        self.zero_sum = False
+        self.zero_sum = True
 
         self.reward_map = {
             # actions worker
@@ -181,7 +181,7 @@ class LuxMAEnv(MultiAgentEnv):
                                              low=-float('inf'),
                                              high=float('inf')
                                              ),
-                                  'game_state': Box(shape=(24,),
+                                  'game_state': Box(shape=(2,),
                                                     dtype=np.float64,
                                                     low=float('-inf'),
                                                     high=float('inf')
@@ -753,12 +753,12 @@ class LuxMAEnv(MultiAgentEnv):
     def observation_spaces(self):
         return {
             piece_id: Dict({
-                'map': Box(shape=(self.game_state.map.width, self.game_state.map.height, 9),
+                'map': Box(shape=(self.game_state.map.width, self.game_state.map.height, 10),
                            dtype=np.float32,
                            low=-float('inf'),
                            high=float('inf')
                            ),
-                'game_state': Box(shape=(3,),
+                'game_state': Box(shape=(2,),
                                   dtype=np.float32,
                                   low=float('-inf'),
                                   high=float('inf')

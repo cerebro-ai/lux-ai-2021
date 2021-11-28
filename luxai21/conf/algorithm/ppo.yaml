@@ -4,13 +4,21 @@ config:
   num_workers: 10
   num_envs_per_worker: 1
 
-  gamma: 0.997
+  gamma: 0.995
 
-  rollout_fragment_length: 1024
-  train_batch_size: 10240
+  rollout_fragment_length: 1000
+  train_batch_size: 10000
   num_sgd_iter: 1
-  lr: 5e-5
-  sgd_minibatch_size: 512
+  lr: 5e-4
+  sgd_minibatch_size: 1000
   batch_mode: "truncate_episodes"
 
-  entropy_coeff: 2e-5
+  entropy_coeff: 1e-5
+  lr_schedule: [
+    [       0, 5e-4],
+    [ 5000000, 2e-4],
+    [10000000, 1e-4],
+    [30000000, 5e-5],
+    [50000000, 2e-5],
+    [80000000, 1e-5],
+  ]
