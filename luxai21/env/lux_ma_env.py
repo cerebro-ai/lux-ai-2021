@@ -117,7 +117,7 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
 
-        self.zero_sum = True
+        self.zero_sum = False
 
         self.reward_map = {
             # actions worker
