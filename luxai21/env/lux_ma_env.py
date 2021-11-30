@@ -153,7 +153,7 @@ class LuxMAEnv(MultiAgentEnv):
             "uranium_researched": 0,
 
             # end
-            "win": 36,
+            "win": 72,
             # "premature_game_end": -0.1,  # per turn away from 360
         }
 
