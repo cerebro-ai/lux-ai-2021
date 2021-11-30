@@ -19,7 +19,7 @@ from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
 from luxai21.policy.city_tile import EagerCityTilePolicy
-from luxai21.policy.worker import get_worker_policy
+from luxai21.policy.worker import get_worker_policy, get_do_nothing_worker_policy
 from luxai21.policy.random import RandomWorkerPolicy
 
 
@@ -39,6 +39,8 @@ def run(cfg: DictConfig):
     else:
         ray.init()
 
+    print("pid", os.getpid())
+
     # ENVIRONMENT
     env_creator = lambda env_config: LuxMAEnv(config=env_config)
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
@@ -49,26 +51,36 @@ def run(cfg: DictConfig):
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
     # Update callback settings
-    MetricsCallback.log_replays = cfg["metrics"].get("log_replays", False)
-    UpdateWeightsCallback.win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.7)
+    class MetricsCallbacks(MetricsCallback):
+        log_replays = cfg["metrics"].get("log_replays", False)
+
+    class WeightsCallback(UpdateWeightsCallback):
+        win_rate_to_rotate = cfg["weights"].get("win_rate_to_update", 0.75)
+        min_steps_between_updates = cfg["weights"].get("min_steps_between_updates", 10)
 
     def policy_mapping_fn(agent_id: str, episode: MultiAgentEpisode, worker: RolloutWorker, **kwargs):
+        # p0_u_1_23245
+        # p0_ct_c_2_2_3_2345
         if "ct_" in agent_id:
             return "city_tile_policy"
         else:
             team = int(agent_id[1])
-            if team == 0:
+            player_team = (episode.episode_id % 2)
+            if team == player_team:
                 return "player_worker"
             else:
                 if cfg.weights.self_play:
                     return "player_worker"
 
-                episode_id = episode.episode_id
-                # use episode_id as seed such that all agents
-                # in one episode are mapped to the same policy
-                with temp_seed(episode_id):
-                    opponent_id = np.random.choice([1, 2, 3], p=[3 / 4, 3 / 16, 1 / 16])
-                return "opponent_worker_" + str(opponent_id)
+                if (episode.episode_id % 999) == 0:
+                    return "do_nothing_worker"
+                else:
+                    episode_id = episode.episode_id
+                    # use episode_id as seed such that all agents
+                    # in one episode are mapped to the same policy
+                    with temp_seed(episode_id):
+                        opponent_id = np.random.choice([1, 2, 3], p=[2 / 3, 2 / 9, 1 / 9])
+                    return "opponent_worker_" + str(opponent_id)
 
     config = {
         "multiagent": {
@@ -77,6 +89,7 @@ def run(cfg: DictConfig):
                 "opponent_worker_1": get_worker_policy(cfg),
                 "opponent_worker_2": get_worker_policy(cfg),
                 "opponent_worker_3": get_worker_policy(cfg),
+                "do_nothing_worker": get_do_nothing_worker_policy(),
                 "city_tile_policy": EagerCityTilePolicy
             },
             "policy_mapping_fn": policy_mapping_fn,
@@ -88,8 +101,8 @@ def run(cfg: DictConfig):
             "wandb": cfg.wandb
         },
         "callbacks": MultiCallbacks([
-            MetricsCallback,
-            UpdateWeightsCallback
+            MetricsCallbacks,
+            WeightsCallback
         ]),
         **cfg.algorithm.config,
         "framework": "torch",
@@ -99,16 +112,16 @@ def run(cfg: DictConfig):
     if cfg.debug:
 
         trainer = ppo.PPOTrainer(config=config, env="lux_ma_env")
-        for i in range(10):
+        for i in range(30):
             result = trainer.train()
     else:
         results = tune.run(cfg.algorithm.name,
                            config=config,
                            stop=dict(cfg.stop),
                            verbose=cfg.verbose,
-                           local_dir=cfg.get("local_dir", None),
+                           local_dir=None,
                            checkpoint_at_end=cfg.checkpoint_at_end,
-                           checkpoint_freq=cfg.checkpoint_freq,
+                           checkpoint_freq=cfg["checkpoint_freq"],
                            restore=cfg.get("restore", None),
                            callbacks=[
                                WandbLoggerCallback(

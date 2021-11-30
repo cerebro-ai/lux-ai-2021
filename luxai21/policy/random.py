@@ -49,7 +49,7 @@ RandomWorkerPolicy = PolicySpec(
                       low=-float('inf'),
                       high=float('inf')
                       ),
-           'game_state': Box(shape=(26,),
+           'game_state': Box(shape=(2,),
                              dtype=np.float64,
                              low=float('-inf'),
                              high=float('inf')

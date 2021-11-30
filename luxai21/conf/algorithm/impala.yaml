@@ -1,0 +1,4 @@
+name: IMPALA
+
+config:
+  train_batch_size: 500

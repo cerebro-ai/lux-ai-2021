@@ -1,13 +1,16 @@
 import copy
 import datetime
+import itertools
 import json
 import os.path
+import pickle
 import random
 from functools import partial
 from pathlib import Path
 from typing import List, Mapping, Tuple, Any
 
 import gym.spaces
+import numpy as np
 from gym.spaces import Discrete, Dict, Box
 from hydra import initialize, compose
 from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction, SpawnWorkerAction, SpawnCartAction, \
@@ -15,6 +18,7 @@ from luxpythonenv.game.actions import MoveAction, SpawnCityAction, PillageAction
 from luxpythonenv.game.constants import LuxMatchConfigs_Default
 from omegaconf import open_dict
 from ray.rllib import MultiAgentEnv
+from ray.rllib.utils.typing import MultiAgentDict
 
 from luxai21.env.render_utils import print_map
 from luxai21.env.utils import *
@@ -58,21 +62,30 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.game_config = config["game"]
         self.env_config = config["env"]
+
+        # if seed is None use a random state from numpy
+        # if seed -1 generate a random state in the beginning and use this for rendering
         self.seed = None
+        self.randomize_seed = False
 
         lux_game_config = LuxMatchConfigs_Default.copy()
         lux_game_config.update(self.game_config)
-        if "seed" not in lux_game_config or lux_game_config["seed"] is None:
-            lux_game_config["seed"] = random.randint(0, 50000)
-        else:
-            self.seed = lux_game_config["seed"]
+
+        if "seed" in lux_game_config:
+            if lux_game_config["seed"] == -1:
+                self.randomize_seed = True
+                self.seed = random.randint(0, 50000)
+            else:
+                self.seed = lux_game_config["seed"]
 
         self.game_state = Game(lux_game_config)
+        self.game_state.skip_exception_logging = True
+
         # rendering
-        self.game_state.start_replay_logging(stateful=True)
+        # self.game_state.start_replay_logging(stateful=True)
         self.last_game_state: Optional[Any] = None
         self.last_game_stats: Optional[Any] = None  # to derive rewards per turn
-        self.last_game_cities: Optional[Dict] = None
+        self.last_game_cities: Optional[Dict[str, City]] = None
 
         self.agents = []
 
@@ -99,8 +112,50 @@ class LuxMAEnv(MultiAgentEnv):
             ResearchAction
         ]
 
+        # if true will log the individual rewards per unit and their amount
+        self.reward_debug = False
+
         self.team_spirit = np.clip(config.get("team_spirit", 0.0), a_min=0.0, a_max=1.0)
-        self.reward_map = dict(config["reward"])
+
+        self.zero_sum = False
+
+        self.reward_map = {
+            # actions worker
+            "move": 0,
+            "transfer": 0,
+            "build_city": 1,
+            "pillage": 0,
+
+            # actions citytile
+            "build_worker": 1,
+            "build_cart": 0.1,
+            "research": 1,
+
+            # agent
+            # can also be acquired through transfer and lost in the night
+            # this is already normalized such that 100 fuel are worth 1.
+            "fuel_collected": 1,
+            # TODO add discounted fuel_collected_at_night
+            "fuel_dropped_at_city": 1,
+
+            "death_before_end": -36,  # per turn away from 360
+
+            # each turn
+            "turn_unit": 0,
+            "living_city_tiles": 0.1,  # get a reward for every living city_tile
+
+            # all worker
+            "death_city_tile": -1,
+
+            # global
+            "research_point": 0,
+            "coal_researched": 0,
+            "uranium_researched": 0,
+
+            # end
+            "win": 72,
+            # "premature_game_end": -0.1,  # per turn away from 360
+        }
 
         self.action_reward_key = {
             # unit actions
@@ -126,7 +181,7 @@ class LuxMAEnv(MultiAgentEnv):
                                              low=-float('inf'),
                                              high=float('inf')
                                              ),
-                                  'game_state': Box(shape=(24,),
+                                  'game_state': Box(shape=(2,),
                                                     dtype=np.float64,
                                                     low=float('-inf'),
                                                     high=float('inf')
@@ -237,7 +292,7 @@ class LuxMAEnv(MultiAgentEnv):
             Observation of the first state
         """
         # get new map_seed
-        if self.seed is None:
+        if self.randomize_seed:
             seed = random.randint(0, 200000)
         else:
             seed = self.seed
@@ -251,15 +306,15 @@ class LuxMAEnv(MultiAgentEnv):
         self.dones = dict(zip(self.agents, [False for _ in self.agents]))
         self.infos = dict(zip(self.agents, [{} for _ in self.agents]))
 
-        self.last_game_state = copy.deepcopy(self.game_state.state)
-        self.last_game_stats = copy.deepcopy(self.game_state.stats)
-        self.last_game_cities = copy.deepcopy(self.game_state.cities)
+        self.last_game_state = pickle.loads(pickle.dumps(self.game_state.state))
+        self.last_game_stats = {**self.game_state.stats}
+        self.last_game_cities = pickle.loads(pickle.dumps(self.game_state.cities))
 
         obs = self.generate_obs()
 
         return obs
 
-    def step(self, actions) -> Tuple[dict, dict, dict, dict]:
+    def env_step(self, actions) -> Tuple[dict, dict, dict, dict, dict]:
         """
         Args:
             actions: Dict
@@ -274,7 +329,7 @@ class LuxMAEnv(MultiAgentEnv):
         """
         if not actions:
             self.agents = []
-            return {}, {}, {}, {}
+            return {}, {}, {}, {}, {}
 
         for agent in actions:
             if isinstance(actions[agent], np.ndarray):
@@ -283,28 +338,15 @@ class LuxMAEnv(MultiAgentEnv):
         game_actions = self.translate_actions(actions)
 
         is_game_done = self.game_state.run_turn_with_actions(actions=game_actions)
-        rewards = self.compute_rewards()
+        rewards, rewards_list, dones = self.compute_rewards()
 
-        self.last_game_state = copy.deepcopy(self.game_state.state)
-        self.last_game_cities = copy.deepcopy(self.game_state.cities)
+        self.last_game_state = pickle.loads(pickle.dumps(self.game_state.state))
+        self.last_game_cities = pickle.loads(pickle.dumps(self.game_state.cities))
+        self.last_game_stats = {**self.game_state.stats}
 
         observations = self.generate_obs()
 
         infos = {piece_id: {} for piece_id in observations.keys()}
-
-        """
-        For every agent for which we received an action,
-        but it is not any more in observation set done to true
-        """
-        dones = {piece_id: is_game_done for piece_id in observations.keys()}
-        for piece_id in actions.keys():
-            if piece_id not in dones:
-                dones[piece_id] = True
-            if piece_id not in rewards:
-                # last reward
-                rewards[piece_id] = 0
-
-        dones["__all__"] = is_game_done
 
         # QUICK FIX TO RENDER EVERY GAME
         # TODO implement this functionality in logger
@@ -326,7 +368,13 @@ class LuxMAEnv(MultiAgentEnv):
 
         self.turn += 1
 
-        return observations, rewards, dones, infos
+        return observations, rewards, dones, infos, rewards_list
+
+    def step(
+            self, action_dict: MultiAgentDict
+    ) -> Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+        obs, rewards, dones, infos, rewards_list = self.env_step(action_dict)
+        return obs, rewards, dones, infos
 
     def translate_actions(self, actions: Mapping[str, int]) -> List:
         """
@@ -392,132 +440,230 @@ class LuxMAEnv(MultiAgentEnv):
 
         return translated_actions
 
-    def compute_rewards(self) -> dict:
+    def compute_rewards(self) -> Tuple[dict, dict, dict]:
+        """
+        Compute the rewards for all units for the current turn (given the last turn in self.last_game...)
+
+        The values for the rewards are in self.reward_map, and the actions have to be resolved by self.action_reward_key
+        action: 'm' -> key: 'move' -> reward: 0
+
+        rewards are of the form ('id', value). This is that we can debug/log which rewards are given
+
+        Returns:
+            A dictionary with the reward for every unit (worker/cart/city_tile) that was either existed last turn,
+            or this turn.
+
+        """
+
+        def total_fuel(u: Unit):
+            return u.cargo["wood"] + u.cargo["coal"] * 10 + u.cargo["uranium"] * 40
+
+        def fuel_score(x):
+            """We map the fuel with a non-linear function such that
+            f(100) ~= 1 (full cargo with wood)
+            f(1000) ~= 2 (full cargo with coal)
+            f(4000) ~= 3 (full cargo with uranium)
+            """
+            return (1.1 + np.exp(-x / 800)) * np.sqrt(x) / 21.1
 
         # TODO negative reward for units if city dies
         # TODO implement reward at turn end
 
-        rewards = {}
-        is_game_over = self.game_state.match_over()
-        winning_team = self.game_state.get_winning_team()
+        this_turn_units: Dict[str, Unit] = {**self.game_state.state["teamStates"][0]["units"],
+                                            **self.game_state.state["teamStates"][1]["units"]}
 
+        last_turn_units: Dict[str, Unit] = {**self.last_game_state["teamStates"][0]["units"],
+                                            **self.last_game_state["teamStates"][1]["units"]}
+
+        rewards_list = {}
+        dones = {}
+
+        # initialize all living units...
+        for unit in this_turn_units.values():
+            rewards_list[self.get_piece_id(unit.team, unit)] = [("", 0)]
+            dones[self.get_piece_id(unit.team, unit)] = False
+
+        # ...and city_tiles
+        for city in self.game_state.cities.values():
+            for cell in city.city_cells:
+                city_tile = cell.city_tile
+                rewards_list[self.get_piece_id(city.team, city_tile)] = [("", 0)]
+                dones[self.get_piece_id(city.team, city_tile)] = False
+
+        # loop over units of the last turn to find all death units
+        for unit_id, unit in last_turn_units.items():
+            if unit_id not in this_turn_units.keys():
+                # that means unit died last turn
+                value = np.minimum((1 - self.turn / 360) * self.reward_map["death_before_end"], 0)
+                rewards_list[self.get_piece_id(unit.team, unit)] = [("death_before_end", value)]
+                dones[self.get_piece_id(unit.team, unit)] = True
+
+        is_game_over = self.game_state.match_over()
+        dones["__all__"] = is_game_over
+        winning_team = self.game_state.get_winning_team() if is_game_over else -1
+
+        # units and city_tiles
         pieces = self.get_pieces()
 
+        # ACTION
+        # pieces that where created last turn start with a reward of zero
         for piece_id, piece in pieces.items():
-            reward = 0
             # Actions
+            reward = ("no_action", 0)
             if piece.last_turn_action is not None:
-                reward = self.reward_map[self.action_reward_key[piece.last_turn_action.action]]
-            rewards[piece_id] = reward
+                reward_key = self.action_reward_key[piece.last_turn_action.action]
+                reward = (reward_key, self.reward_map[reward_key])
 
-        current_city_ids = [city.id for city in self.game_state.cities.values()]
+            rewards_list[piece_id].append(reward)
 
-        lost_city = {
-            0: False,
-            1: False
+        # AGENT
+        # loop over all living units (of both teams)
+        for unit_id, unit in this_turn_units.items():
+            team = unit.team
+            piece_id = self.get_piece_id(team, unit)
+
+            # check if it has collected new resources
+            # check that the unit also existed last turn
+            if unit.id in self.last_game_state["teamStates"][team]["units"].keys():
+                unit_last_turn: Unit = self.last_game_state["teamStates"][team]["units"][unit.id]
+                last_fuel_score = fuel_score(total_fuel(unit_last_turn))
+                current_fuel_score = fuel_score(total_fuel(unit))
+
+                # TODO does this catch the case when a unit is standing on the city adjacent to a resource tile?
+                # check if unit stands on a city tile
+                cell = self.game_state.map.get_cell_by_pos(unit.pos)
+                if cell.city_tile and (cell.city_tile.team == team):
+                    # on city, so it already dropped all its resources
+                    assert current_fuel_score == 0
+                    value = self.reward_map["fuel_dropped_at_city"] * fuel_score(getattr(unit, "fuel_deposited", 0))
+                    rewards_list[piece_id].append(("fuel_dropped_at_city", value))
+                    unit.fuel_deposited = 0
+                else:
+                    # not on city, forward difference in fuel score to reward (influenced by mining and the night)
+                    fuel_difference = current_fuel_score - last_fuel_score
+                    value = self.reward_map["fuel_collected"] * fuel_difference
+                    rewards_list[piece_id].append(("fuel_collected", value))
+
+            else:
+                # can not collect resources if it was just created
+                continue
+
+        # compute how many citytiles per team
+        count_city_tiles = {
+            0: get_city_tile_count(self.game_state.cities, 0),
+            1: get_city_tile_count(self.game_state.cities, 1)
         }
 
+        last_count_city_tiles = {
+            0: get_city_tile_count(self.last_game_cities, 0),
+            1: get_city_tile_count(self.last_game_cities, 1),
+        }
+
+        # turn rewards and current city_tiles
+        for unit_id, unit in this_turn_units.items():
+            # turn reward
+            piece_id = self.get_piece_id(unit.team, unit)
+            rewards_list[piece_id].append(("turn_unit", self.reward_map["turn_unit"]))
+
+            # reward for living city_tiles
+            value = self.reward_map["living_city_tiles"] * count_city_tiles[unit.team]
+            rewards_list[piece_id].append(("living_city_tiles", value))
+
+        # penalize death of city_tiles
+        current_city_ids = [city.id for city in self.game_state.cities.values()]
+        lost_city_tiles = {
+            0: 0,
+            1: 0
+        }
         for city in self.last_game_cities.values():
             if city.id not in current_city_ids:
-                lost_city[city.team] = True
+                lost_city_tiles[city.team] += len(city.city_cells)
 
-        if is_game_over:
-            city_tiles_team1 = 0
-            city_tiles_team2 = 0
-            for _, city in self.game_state.cities.items():
-                if city.team == 0:
-                    city_tiles_team1 += len(city.city_cells)
-                else:
-                    city_tiles_team2 += len(city.city_cells)
+        for unit_id, unit in this_turn_units.items():
+            team = unit.team
+            piece_id = self.get_piece_id(team, unit)
+            value = self.reward_map["death_city_tile"] * lost_city_tiles[team]
+            rewards_list[piece_id].append(("death_city_tile", value))
 
-        # Turn reward & death city
-        for piece_id in rewards.keys():
-            team = int(piece_id[1])
-
-            if "ct_" in piece_id:
-                rewards[piece_id] += self.reward_map["turn_citytile"]
-            else:
-                rewards[piece_id] += self.reward_map["turn_unit"]
-
-                if lost_city[team]:
-                    rewards[piece_id] += self.reward_map["death_city"]
-
-                # resources (reward not negative)
-                unit: Unit = pieces[piece_id]
-                # check that the unit also existed last turn
-                if unit.id in self.last_game_state["teamStates"][team]["units"].keys():
-                    unit_last_turn = self.last_game_state["teamStates"][team]["units"][unit.id]
-                    rewards[piece_id] += self.reward_map["wood_collected"] * max(
-                        unit.cargo["wood"] - unit_last_turn.cargo["wood"],
-                        0
-                    )
-                    rewards[piece_id] += self.reward_map["coal_collected"] * max(
-                        unit.cargo["coal"] - unit_last_turn.cargo["coal"],
-                        0
-                    )
-                    rewards[piece_id] += self.reward_map["uranium_collected"] * max(
-                        unit.cargo["uranium"] - unit_last_turn.cargo["uranium"],
-                        0
-                    )
-
-            # Collected resources
-            rewards[piece_id] += self.reward_map["global_wood_collected"] * \
-                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['wood'] -
-                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['wood'])
-            rewards[piece_id] += self.reward_map["global_coal_collected"] * \
-                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['coal'] -
-                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['coal'])
-            rewards[piece_id] += self.reward_map["global_uranium_collected"] * \
-                                 (self.game_state.stats['teamStats'][team]['resourcesCollected']['uranium'] -
-                                  self.last_game_stats['teamStats'][team]['resourcesCollected']['uranium'])
-            # Fuel
-            rewards[piece_id] += self.reward_map["fuel_generated"] * \
-                                 (self.game_state.stats['teamStats'][team]['fuelGenerated'] -
-                                  self.last_game_stats['teamStats'][team]['fuelGenerated'])
-
-            # Research Points
+        # global rewards
+        # research & win
+        for unit in this_turn_units.values():
+            team = unit.team
+            piece_id = self.get_piece_id(team, unit)
+            # give research rewards only until uranium is researched, after that there is no point in researching
             if not self.last_game_state['teamStates'][team]['researched']['uranium']:
-                rewards[piece_id] += self.reward_map["research_points"] * \
-                                     (self.game_state.state['teamStates'][team]['researchPoints'] -
-                                      self.last_game_state['teamStates'][team]['researchPoints'])
+                value = self.reward_map["research_point"] * \
+                        (self.game_state.state['teamStates'][team]['researchPoints'] -
+                         self.last_game_state['teamStates'][team]['researchPoints'])
+                rewards_list[piece_id].append(("research_point", value))
 
-                # Reached coal/uranium research level
-                for resource in ['coal', 'uranium']:
-                    if self.game_state.state['teamStates'][team]['researched'][resource] and not \
-                            self.last_game_state['teamStates'][team]['researched'][resource]:
-                        rewards[piece_id] += self.reward_map[f"{resource}_researched"]
+            # researched coal and uranium
+            for resource in ['coal', 'uranium']:
+                if self.game_state.state['teamStates'][team]['researched'][resource] and not \
+                        self.last_game_state['teamStates'][team]['researched'][resource]:
+                    rewards_list[piece_id].append((f"{resource}_researched", self.reward_map[f"{resource}_researched"]))
 
+            # win
             if is_game_over:
-                if team == 0:
-                    rewards[piece_id] += self.reward_map["citytiles_end"] * city_tiles_team1
-                    rewards[piece_id] -= self.reward_map["citytiles_end_opponent"] * city_tiles_team2
-                else:
-                    rewards[piece_id] += self.reward_map["citytiles_end"] * city_tiles_team2
-                    rewards[piece_id] -= self.reward_map["citytiles_end_opponent"] * city_tiles_team1
                 if team == winning_team:
-                    rewards[piece_id] += self.reward_map["win"]
+                    value = (self.turn / 360) * self.reward_map["win"]
+                    rewards_list[piece_id].append(("win", value))
 
-        team_average_reward = {}
+        # premature game end
+        # if is_game_over:
+        #     for unit_id, unit in {**this_turn_units, **last_turn_units}.items():
+        #         piece_id = self.get_piece_id(unit.team, unit)
+        #         value = (360 - self.turn) * self.reward_map["premature_game_end"]
+        #         rewards_list[piece_id].append(("premature_game_end", value))
 
-        for team in [0, 1]:
+        rewards_sum = {}
+        for piece_id, reward_list in rewards_list.items():
             total_reward = 0
-            N = 0
-            for piece_id in rewards.keys():
-                if piece_id[1] == team:
-                    total_reward += rewards[piece_id]
-                    N += 1
-            if N > 0:
-                team_average_reward[team] = total_reward / N
-            else:
-                team_average_reward[team] = 0
+            for ident, reward in reward_list:
+                total_reward += reward
+            rewards_sum[piece_id] = total_reward
 
+        # apply team_spirit and zero sum
+        total_team_reward = {
+            0: 0,
+            1: 0
+        }
+        team_size = {
+            0: 0,
+            1: 0
+        }
+
+        for piece_id, reward in rewards_sum.items():
+            if "ct_" in piece_id:
+                # skip city_tiles
+                continue
+            team = int(piece_id[1])
+            team_size[team] += 1
+            total_team_reward[team] += reward
+
+        avg_team_reward = {
+            0: total_team_reward[0] / team_size[0] if team_size[0] != 0 else 0,
+            1: total_team_reward[1] / team_size[1] if team_size[1] != 0 else 0
+        }
+
+        # team spirit (this does not change the average over the team rewards)
         if self.team_spirit > 0:
-            for piece_id in rewards.keys():
+            for piece_id, reward in rewards_sum.items():
                 team = int(piece_id[1])
-                rewards[piece_id] = round((1 - self.team_spirit) * rewards[piece_id] + \
-                                          self.team_spirit * team_average_reward[team], 6)
+                rewards_sum[piece_id] = round(
+                    (1 - self.team_spirit) * reward + self.team_spirit * avg_team_reward[team], 4)
 
-        return rewards
+        # zero sum
+        if self.zero_sum:
+            for piece_id, reward in rewards_sum.items():
+                if "ct_" in piece_id:
+                    # skip city_tiles
+                    continue
+                team = int(piece_id[1])
+                other_team = (team + 1) % 2
+                rewards_sum[piece_id] = reward - avg_team_reward[other_team]
+
+        return rewards_sum, rewards_list, dones
 
     def get_pieces(self):
         pieces = {}
@@ -538,21 +684,65 @@ class LuxMAEnv(MultiAgentEnv):
         seed = self.game_state.configs["seed"]
         if hasattr(piece, "cargo"):
             # is unit
-            return f"p{team}_{piece.id}_{seed}"
+            if seed is not None:
+                return f"p{team}_{piece.id}_{seed}"
+            else:
+                return f"p{team}_{piece.id}_0"
         else:
-            return f"p{team}_ct_{piece.get_tile_id()}_{seed}"
+            if seed is not None:
+                return f"p{team}_ct_{piece.get_tile_id()}_{seed}"
+            else:
+                return f"p{team}_ct_{piece.get_tile_id()}_0"
 
     @staticmethod
     def piece_id_to_unit_id(piece_id):
         # p0_u_1_2348
         return "_".join(piece_id.split("_")[1:3])
 
+    def _generate_unit_states(self, map_state: np.ndarray, team: int):
+        """
+        Return a dictionary where the keys are the unit_id or citytile_id and the value the unit
+        {
+            'u1': {
+                type:  0=worker, 1=cart, 2=city_tile
+                state: [cooldown, cargo], [fuel, fuel_burn, cooldown]
+                pos: (x, y)
+                action_mask: Discrete(12)
+
+        }
+        """
+        states = {}
+        game_state_array = generate_simple_game_state_obs(self.game_state, team)
+
+        for _, city in self.game_state.cities.items():
+            if city.team == team:
+                for cell in city.city_cells:
+                    city_tile = cell.city_tile
+                    states[self.get_piece_id(team, city_tile)] = {
+                        "type": 2,
+                        "pos": np.array([cell.pos.x, cell.pos.y]),
+                        "action_mask": get_action_mask(self.game_state, team, None, city_tile, self.env_config),
+                        "map": append_position_layer(map_state, city_tile),
+                        # "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
+                        "game_state": game_state_array
+                    }
+
+        for unit in self.game_state.state["teamStates"][team]["units"].values():
+            states[self.get_piece_id(team, unit)] = {
+                "type": 0 if unit.is_worker() else 1,
+                "pos": np.array([unit.pos.x, unit.pos.y]),
+                "action_mask": get_action_mask(self.game_state, team, unit, None, self.env_config),
+                "map": append_position_layer(map_state, unit),
+                "game_state": game_state_array
+            }
+        return states
+
     def generate_obs(self):
         _map_player0 = generate_simple_map_obs(self.game_state, 0)
         _map_player1 = generate_simple_map_obs(self.game_state, 1)
 
-        unit_states_player0 = generate_unit_states(self.game_state, _map_player0, team=0, config=self.env_config)
-        unit_states_player1 = generate_unit_states(self.game_state, _map_player1, team=1, config=self.env_config)
+        unit_states_player0 = self._generate_unit_states(_map_player0, team=0)
+        unit_states_player1 = self._generate_unit_states(_map_player1, team=1)
 
         return {
             **unit_states_player0,
@@ -563,12 +753,12 @@ class LuxMAEnv(MultiAgentEnv):
     def observation_spaces(self):
         return {
             piece_id: Dict({
-                'map': Box(shape=(self.game_state.map.width, self.game_state.map.height, 9),
+                'map': Box(shape=(self.game_state.map.width, self.game_state.map.height, 10),
                            dtype=np.float32,
                            low=-float('inf'),
                            high=float('inf')
                            ),
-                'game_state': Box(shape=(3,),
+                'game_state': Box(shape=(2,),
                                   dtype=np.float32,
                                   low=float('-inf'),
                                   high=float('inf')
@@ -622,14 +812,14 @@ if __name__ == '__main__':
         print(f"TURN: {env.turn}")
 
         # get the first worker of team 0
-        for piece_id, piece in obs.items():
-            if piece_id.startswith("p0_") and "ct" not in piece_id:
-                p_id = piece_id
-                action_id = input(f"enter action_id for {piece_id}:")
+        for _piece_id, _ in obs.items():
+            if _piece_id.startswith("p0_") and "ct" not in _piece_id:
+                p_id = _piece_id
+                action_id = input(f"enter action_id for {_piece_id}:")
                 if action_id == "":
                     action_id = 0
                 actions = {
-                    piece_id: int(action_id)
+                    _piece_id: int(action_id)
                 }
                 break
         map_obs = generate_simple_map_obs(game_state=env.game_state, team=0)
