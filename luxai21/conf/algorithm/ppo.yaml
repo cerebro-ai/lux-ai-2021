@@ -13,7 +13,7 @@ config:
   sgd_minibatch_size: 500
   batch_mode: "truncate_episodes"
 
-  entropy_coeff: 1e-4
+  entropy_coeff: 1e-5
   lr_schedule: [
     [       0, 1e-4],
     [10000000, 5e-5],
