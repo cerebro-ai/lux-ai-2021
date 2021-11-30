@@ -286,7 +286,7 @@ class LuxMAEnv(MultiAgentEnv):
             print_map(self.game_state.map)
             return ""
 
-    def reset(self):
+    def reset(self) -> dict:
         """
         Returns:
             Observation of the first state
@@ -719,7 +719,6 @@ class LuxMAEnv(MultiAgentEnv):
                 for cell in city.city_cells:
                     city_tile = cell.city_tile
                     states[self.get_piece_id(team, city_tile)] = {
-                        "type": 2,
                         "pos": np.array([cell.pos.x, cell.pos.y]),
                         "action_mask": get_action_mask(self.game_state, team, None, city_tile, self.env_config),
                         "map": append_position_layer(map_state, city_tile),
@@ -729,7 +728,6 @@ class LuxMAEnv(MultiAgentEnv):
 
         for unit in self.game_state.state["teamStates"][team]["units"].values():
             states[self.get_piece_id(team, unit)] = {
-                "type": 0 if unit.is_worker() else 1,
                 "pos": np.array([unit.pos.x, unit.pos.y]),
                 "action_mask": get_action_mask(self.game_state, team, unit, None, self.env_config),
                 "map": append_position_layer(map_state, unit),

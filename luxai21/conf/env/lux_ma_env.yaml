@@ -1,6 +1,8 @@
 env: lux_ma_env
 
 env_config:
+  stack_size: 3
+
   game:
     height: 12
     width: 12
