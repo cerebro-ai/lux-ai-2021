@@ -15,6 +15,7 @@ from luxai21.callbacks.metrics import MetricsCallback
 from luxai21.callbacks.weights import UpdateWeightsCallback
 from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
+from luxai21.env.stacked_env import StackedLuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
@@ -42,7 +43,7 @@ def run(cfg: DictConfig):
     print("pid", os.getpid())
 
     # ENVIRONMENT
-    env_creator = lambda env_config: LuxMAEnv(config=env_config)
+    env_creator = lambda env_config: StackedLuxMAEnv(config=env_config)
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
 
     # MODEL

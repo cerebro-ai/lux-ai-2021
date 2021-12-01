@@ -87,7 +87,7 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
         self.config = model_config["custom_model_config"]
         self.use_meta_node = self.config["use_meta_node"]
 
-        self.map_model = Representation(input_shape=(10, 12, 12),
+        self.map_model = Representation(input_shape=(30, 12, 12),
                                         num_filters=self.config["map"]["num_filters"],
                                         num_blocks=self.config["map"]["num_blocks"]
                                         )
@@ -233,7 +233,11 @@ class WorkerLSTMModelV2(RecurrentNetwork, nn.Module):
 
     def mask_logits(self, logits, action_mask):
         mask_value = torch.finfo(logits.dtype).min
+
+        # shorten the last dimension of action_mask
+        action_mask = torch.narrow(action_mask, action_mask.dim() - 1, 0, logits.size()[-1])
         inf_mask = torch.maximum(torch.log(action_mask), torch.tensor(mask_value))
+
         logits_masked = logits + inf_mask
         return logits_masked
 

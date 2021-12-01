@@ -6,7 +6,7 @@ worker:
         num_filters: 64
         num_blocks: 5
       game_state_model:
-        input_dim: 2
+        input_dim: 6
         hidden_dim: 4
         output_dim: 4
       embedding_size: 128
