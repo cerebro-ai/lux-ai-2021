@@ -63,23 +63,22 @@ EagerCityTilePolicy = PolicySpec(
     policy_class=BasicCityTilePolicy,
     action_space=spaces.Discrete(4),
     observation_space=spaces.Dict(
-        **{'map': spaces.Box(shape=(12, 12, 10),
+        **{'map': spaces.Box(shape=(12, 12, 30),
                              dtype=np.float64,
                              low=-float('inf'),
                              high=float('inf')
                              ),
-           'game_state': spaces.Box(shape=(2,),
+           'game_state': spaces.Box(shape=(6,),
                                     dtype=np.float64,
                                     low=float('-inf'),
                                     high=float('inf')
                                     ),
-           'type': spaces.Discrete(3),
-           'pos': spaces.Box(shape=(2,),
+           'pos': spaces.Box(shape=(6,),
                              dtype=np.float64,
                              low=0,
                              high=99999
                              ),
-           'action_mask': spaces.Box(shape=(4,),
+           'action_mask': spaces.Box(shape=(12,),
                                      dtype=np.float64,
                                      low=0,
                                      high=1

@@ -4,7 +4,7 @@ defaults:
   - model: v2
   - _self_
 
-debug: false
+debug: true
 verbose: 0
 
 stop:

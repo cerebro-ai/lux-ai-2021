@@ -15,23 +15,22 @@ def get_worker_policy(config):
     return PolicySpec(
         action_space=spaces.Discrete(9),
         observation_space=spaces.Dict(
-            **{'map': spaces.Box(shape=(12, 12, 10),
+            **{'map': spaces.Box(shape=(12, 12, 30),
                                  dtype=np.float64,
                                  low=-float('inf'),
                                  high=float('inf')
                                  ),
-               'game_state': spaces.Box(shape=(2,),
+               'game_state': spaces.Box(shape=(6,),
                                         dtype=np.float64,
                                         low=float('-inf'),
                                         high=float('inf')
                                         ),
-               'type': spaces.Discrete(3),
-               'pos': spaces.Box(shape=(2,),
+               'pos': spaces.Box(shape=(6,),
                                  dtype=np.float64,
                                  low=0,
                                  high=99999
                                  ),
-               'action_mask': spaces.Box(shape=(9,),
+               'action_mask': spaces.Box(shape=(27,),
                                          dtype=np.float64,
                                          low=0,
                                          high=1
@@ -88,23 +87,22 @@ def get_do_nothing_worker_policy():
         policy_class=DoNothingWorkerPolicy,
         action_space=spaces.Discrete(9),
         observation_space=spaces.Dict(
-            **{'map': spaces.Box(shape=(12, 12, 10),
+            **{'map': spaces.Box(shape=(12, 12, 30),
                                  dtype=np.float64,
                                  low=-float('inf'),
                                  high=float('inf')
                                  ),
-               'game_state': spaces.Box(shape=(2,),
+               'game_state': spaces.Box(shape=(6,),
                                         dtype=np.float64,
                                         low=float('-inf'),
                                         high=float('inf')
                                         ),
-               'type': spaces.Discrete(3),
-               'pos': spaces.Box(shape=(2,),
+               'pos': spaces.Box(shape=(6,),
                                  dtype=np.float64,
                                  low=0,
                                  high=99999
                                  ),
-               'action_mask': spaces.Box(shape=(9,),
+               'action_mask': spaces.Box(shape=(27,),
                                          dtype=np.float64,
                                          low=0,
                                          high=1
