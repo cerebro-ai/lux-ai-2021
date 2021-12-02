@@ -6,8 +6,8 @@ config:
 
   gamma: 0.997
 
-  rollout_fragment_length: 1600
-  train_batch_size: 16000
+  rollout_fragment_length: 1000
+  train_batch_size: 10000
   num_sgd_iter: 5
   lr: 5e-5
   sgd_minibatch_size: 1000
