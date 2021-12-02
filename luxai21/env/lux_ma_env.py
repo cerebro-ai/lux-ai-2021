@@ -123,7 +123,7 @@ class LuxMAEnv(MultiAgentEnv):
             # actions worker
             "move": 0,
             "transfer": 0,
-            "build_city": 5,
+            "build_city": 10,
             "pillage": 0,
 
             # actions citytile
@@ -134,18 +134,18 @@ class LuxMAEnv(MultiAgentEnv):
             # agent
             # can also be acquired through transfer and lost in the night
             # this is already normalized such that 100 fuel are worth 1.
-            "fuel_collected": 1,
+            "fuel_collected": 0.5,
             # TODO add discounted fuel_collected_at_night
-            "fuel_dropped_at_city": 1,
+            "fuel_dropped_at_city": 0.5,
 
-            "death_before_end": -10,  # per turn away from 360
+            "death_before_end": -30,  # per turn away from 360
 
             # each turn
             "turn_unit": 0,
-            "living_city_tiles": 0.2,  # get a reward for every living city_tile
+            "living_city_tiles": 0,  # get a reward for every living city_tile
 
             # all worker
-            "death_city_tile": -10,
+            "death_city_tile": -15,
 
             # global
             "research_point": 0,
@@ -153,7 +153,7 @@ class LuxMAEnv(MultiAgentEnv):
             "uranium_researched": 0,
 
             # end
-            "win": 10,
+            "win": 0,
             # "premature_game_end": -0.1,  # per turn away from 360
         }
 
