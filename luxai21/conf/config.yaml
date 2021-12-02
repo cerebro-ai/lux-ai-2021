@@ -1,7 +1,7 @@
 defaults:
   - algorithm: ppo
   - env: lux_ma_env
-  - model: v2
+  - model: v3
   - _self_
 
 debug: true
@@ -27,7 +27,7 @@ weights:
 wandb:
   entity: cerebro-ai  # under which account to find project
   project: luxai21
-  group: beta  # this is just the group for the runs
-  notes: run with updating opponents and lr schedule. v2 model with simple obs
+  group: delta  # this is just the group for the runs
+  notes: v3 worker without lstm with three stacked observations
   tags: [ Dev, Rllib ]
   mode: online
