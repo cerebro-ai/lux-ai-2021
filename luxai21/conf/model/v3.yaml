@@ -7,11 +7,9 @@ worker:
         num_blocks: 2
       game_state_model:
         input_dim: 6
-        hidden_dim: 4
+        hidden_dim: 8
         output_dim: 4
       embedding_size: 128
-      lstm:
-        hidden_size: 128
       policy:
         hidden_size_1: 64
         hidden_size_2: 32
