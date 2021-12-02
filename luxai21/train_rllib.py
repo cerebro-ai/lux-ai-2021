@@ -19,6 +19,7 @@ from luxai21.env.stacked_env import StackedLuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
+from luxai21.models.rllib.worker_v3 import WorkerModelV3
 from luxai21.policy.city_tile import EagerCityTilePolicy
 from luxai21.policy.worker import get_worker_policy, get_do_nothing_worker_policy
 from luxai21.policy.random import RandomWorkerPolicy
@@ -49,6 +50,7 @@ def run(cfg: DictConfig):
     # MODEL
     ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
     ModelCatalog.register_custom_model("worker_model_v2", WorkerLSTMModelV2)
+    ModelCatalog.register_custom_model("worker_model_v3", WorkerModelV3)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)
 
     # Update callback settings
