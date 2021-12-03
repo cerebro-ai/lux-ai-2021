@@ -151,12 +151,28 @@ class WorkerModelV3(TorchModelV2, nn.Module):
             u_map = input_dict["obs"]["map"][i, :, :, :][pad:-pad, pad:-pad, :]
             unpadded_maps.append(u_map)
 
-        global_map = torch.stack(unpadded_maps, dim=0)
+        def embed_different_sized_maps(unpadded_maps):
+            break_indices = [0]
+            for i in range(1, len(unpadded_maps)):
+                if unpadded_maps[i].size()[0] != unpadded_maps[i - 1].size()[0]:
+                    break_indices.append(i)
+
+            break_indices.append(len(unpadded_maps))
+
+            game_strategies = []
+            for j in range(1, len(break_indices)):
+                g_map = torch.stack(unpadded_maps[break_indices[j - 1]: break_indices[j]], dim=0)
+                g_strategy = self.map_model(torch.permute(g_map, dims=(0, 3, 1, 2)))
+                game_strategies.append(g_strategy)
+
+            game_strategy = torch.cat(game_strategies)
+            return game_strategy
+
+        global_strategy = embed_different_sized_maps(unpadded_maps)
 
         # global_map = unpad_map(input_dict["obs"]["map"].numpy(), map_size)  # 12x12x10
         game_state = input_dict["obs"]["game_state"]
 
-        global_strategy = self.map_model(torch.permute(global_map, dims=(0, 3, 1, 2)))
         game_strategy = self.game_state_model(game_state)
 
         strategy = torch.cat([global_strategy, game_strategy], dim=1)
