@@ -11,6 +11,7 @@ from ray.rllib.utils.annotations import override
 from ray.rllib.utils.typing import ModelConfigDict
 from torch import nn, Tensor, TensorType
 
+from luxai21.env.utils import unpad_map
 from luxai21.models.gnn.map_embedding import MapEmbeddingTower
 from luxai21.models.gnn.utils import get_board_edge_index, batches_to_large_graph, large_graph_to_batches
 
@@ -75,7 +76,6 @@ class WorkerModelV3(TorchModelV2, nn.Module):
     def __init__(self, obs_space: gym.spaces.Space,
                  action_space: gym.spaces.Space, num_outputs: int,
                  model_config: ModelConfigDict, name: str):
-
         nn.Module.__init__(self)
         super(WorkerModelV3, self).__init__(obs_space,
                                             action_space, num_outputs,
@@ -141,7 +141,19 @@ class WorkerModelV3(TorchModelV2, nn.Module):
     def forward(self, input_dict: Dict[str, Dict[str, Tensor]],
                 state: List[TensorType],
                 seq_lens: TensorType) -> (TensorType, List[TensorType]):
-        global_map = input_dict["obs"]["map"] # 12x12x10
+        map_sizes = input_dict["obs"]["map_size"][:, 0]
+
+        unpadded_maps = []
+        for i, map_size in enumerate(map_sizes.tolist()):
+            if map_size == 0:  # only needed for test run
+                map_size = 12
+            pad = int((input_dict["obs"]["map"][i, :, :, :].size()[0] - map_size) // 2)
+            u_map = input_dict["obs"]["map"][i, :, :, :][pad:-pad, pad:-pad, :]
+            unpadded_maps.append(u_map)
+
+        global_map = torch.stack(unpadded_maps, dim=0)
+
+        # global_map = unpad_map(input_dict["obs"]["map"].numpy(), map_size)  # 12x12x10
         game_state = input_dict["obs"]["game_state"]
 
         global_strategy = self.map_model(torch.permute(global_map, dims=(0, 3, 1, 2)))
@@ -153,7 +165,6 @@ class WorkerModelV3(TorchModelV2, nn.Module):
         self._features = features
 
         self.action_mask = input_dict["obs"]["action_mask"].int()
-
 
         policy_features = self.policy_branch(self._features)
         action_logits = self.logits_head(policy_features)

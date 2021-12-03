@@ -1,4 +1,6 @@
 from typing import Optional, Dict, Union, Tuple
+
+import torch
 import wandb
 
 import numpy as np
@@ -463,6 +465,22 @@ def generate_mini_map(map: np.ndarray, pos: Tuple, fov: int):
     return mini_map
 
 
+def pad_map(map_array: np.ndarray, padded_size: int):
+    pad = (padded_size - map_array.shape[0]) // 2
+    return np.pad(map_array, [(pad,), (pad,), (0,)], mode="constant", constant_values=0)
+
+
+def unpad_map(map_array: np.ndarray, original_size: int) -> Union[torch.Tensor, np.ndarray]:
+    if isinstance(map_array, torch.Tensor):
+        pad = (map_array.size()[0] - original_size) // 2
+        if map_array.dim() == 4:
+            return map_array[:, pad:-pad, pad:-pad, :]
+    else:
+        pad = (map_array.shape[0] - original_size) // 2
+
+    return map_array[pad:-pad, pad:-pad, :]
+
+
 def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile: Optional[CityTile], config):
     """
     actions:
@@ -618,3 +636,13 @@ def log_and_get_citytiles_game_end(game_state: Game):
         'Citytiles_end_player_one': citytiles_end,
     })
     return citytiles_end
+
+
+def test_pad_map():
+    map_v = np.random.random((12, 12, 30))
+    map_padded = pad_map(map_v, 32)
+    assert map_padded.shape == (32, 32, 30)
+
+    map_unpad = unpad_map(map_padded, 12)
+
+    assert np.all(map_v == map_unpad)

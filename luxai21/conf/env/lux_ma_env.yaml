@@ -7,6 +7,10 @@ env_config:
     height: 12
     width: 12
 
+  random_game_size: true
+  size_values: [ 10, 12, 14, 16, 20, 24, 28, 32 ]
+  size_probs: [ .2, .3, .2, .2, .1, .0, .0, .0 ]
+
   env:
     allow_carts: false
 

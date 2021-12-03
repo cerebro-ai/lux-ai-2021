@@ -287,6 +287,13 @@ class LuxMAEnv(MultiAgentEnv):
             print_map(self.game_state.map)
             return ""
 
+    def get_random_game_size(self) -> int:
+        values = self.config["size_values"]
+        probs = self.config["size_probs"]
+
+        size = np.random.choice(values, p=probs)
+        return size
+
     def reset(self) -> dict:
         """
         Returns:
@@ -297,6 +304,12 @@ class LuxMAEnv(MultiAgentEnv):
             seed = random.randint(0, 200000)
         else:
             seed = self.seed
+
+        if self.config["random_game_size"]:
+            size = self.get_random_game_size()
+            print("game_size", size)
+            self.game_state.configs["height"] = size
+            self.game_state.configs["width"] = size
 
         self.game_state.configs["seed"] = seed
         self.game_state.reset()
@@ -715,6 +728,8 @@ class LuxMAEnv(MultiAgentEnv):
                 action_mask: Discrete(12)
 
         }
+
+        We have to pad the map because variable sizes maps will throw an error with rl lib
         """
         states = {}
         game_state_array = generate_simple_game_state_obs(self.game_state, team)
@@ -726,7 +741,8 @@ class LuxMAEnv(MultiAgentEnv):
                     states[self.get_piece_id(team, city_tile)] = {
                         "pos": np.array([cell.pos.x, cell.pos.y]),
                         "action_mask": get_action_mask(self.game_state, team, None, city_tile, self.env_config),
-                        "map": append_position_layer(map_state, city_tile),
+                        "map": pad_map(append_position_layer(map_state, city_tile), 32),
+                        "map_size": np.array([len(self.game_state.map.map)]),
                         # "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
                         "game_state": game_state_array
                     }
@@ -735,7 +751,8 @@ class LuxMAEnv(MultiAgentEnv):
             states[self.get_piece_id(team, unit)] = {
                 "pos": np.array([unit.pos.x, unit.pos.y]),
                 "action_mask": get_action_mask(self.game_state, team, unit, None, self.env_config),
-                "map": append_position_layer(map_state, unit),
+                "map": pad_map(append_position_layer(map_state, unit), 32),
+                "map_size": np.array([len(self.game_state.map.map)]),
                 "game_state": game_state_array
             }
         return states
