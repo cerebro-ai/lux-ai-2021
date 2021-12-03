@@ -98,7 +98,7 @@ if __name__ == '__main__':
         config["game"]["seed"] = seed
 
     start_time = time.time()
-    n_games = 300
+    n_games = 200
 
     # array with (games, turns)
     # all_rewards = [np.zeros((n_games, 361)), np.zeros((n_games, 361))]

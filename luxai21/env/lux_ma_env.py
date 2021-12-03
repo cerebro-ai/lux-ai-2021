@@ -123,7 +123,7 @@ class LuxMAEnv(MultiAgentEnv):
             # actions worker
             "move": 0,
             "transfer": 0,
-            "build_city": 0.1,
+            "build_city": 0.5,
             "pillage": 0,
 
             # actions citytile
@@ -138,7 +138,7 @@ class LuxMAEnv(MultiAgentEnv):
             # TODO add discounted fuel_collected_at_night
             "fuel_dropped_at_city": 0.2,
 
-            "death_before_end": -1,  # per turn away from 360
+            "death_before_end": 0,  # per turn away from 360
 
             # each turn
             "turn_unit": 0.1,
@@ -153,7 +153,8 @@ class LuxMAEnv(MultiAgentEnv):
             "uranium_researched": 0,
 
             # end
-            "win": 36,
+            "win": 10,
+            "end_city_tile": 1,
             # "premature_game_end": -0.1,  # per turn away from 360
         }
 
@@ -608,6 +609,10 @@ class LuxMAEnv(MultiAgentEnv):
                 if team == winning_team:
                     value = (self.turn / 360) * self.reward_map["win"]
                     rewards_list[piece_id].append(("win", value))
+
+                tiles = get_city_tile_count(self.game_state.cities, team)
+                value = self.reward_map["end_city_tile"] * tiles
+                rewards_list[piece_id].append(("end_city_tiles", value))
 
         # premature game end
         # if is_game_over:
