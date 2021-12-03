@@ -307,7 +307,6 @@ class LuxMAEnv(MultiAgentEnv):
 
         if self.config["random_game_size"]:
             size = self.get_random_game_size()
-            print("game_size", size)
             self.game_state.configs["height"] = size
             self.game_state.configs["width"] = size
 
