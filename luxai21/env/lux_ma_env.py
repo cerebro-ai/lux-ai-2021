@@ -747,11 +747,13 @@ class LuxMAEnv(MultiAgentEnv):
                     }
 
         for unit in self.game_state.state["teamStates"][team]["units"].values():
+            map_size = self.game_state.configs["height"]
+            assert map_size in [10, 12, 14, 16, 20, 24, 28, 32]
             states[self.get_piece_id(team, unit)] = {
                 "pos": np.array([unit.pos.x, unit.pos.y]),
                 "action_mask": get_action_mask(self.game_state, team, unit, None, self.env_config),
                 "map": pad_map(append_position_layer(map_state, unit), 32),
-                "map_size": np.array([self.game_state.configs["height"]]),
+                "map_size": np.array([map_size]),
                 "game_state": game_state_array
             }
         return states

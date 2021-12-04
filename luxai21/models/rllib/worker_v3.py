@@ -146,7 +146,7 @@ class WorkerModelV3(TorchModelV2, nn.Module):
         unpadded_maps = []
         for i, map_size in enumerate(map_sizes.tolist()):
             if map_size == 0:  # only needed for test run
-                map_size = 12
+                map_size = 20
             pad = int((input_dict["obs"]["map"][i, :, :, :].size()[0] - map_size) // 2)
             u_map = input_dict["obs"]["map"][i, :, :, :][pad:-pad, pad:-pad, :]
             unpadded_maps.append(u_map)
@@ -201,8 +201,7 @@ class WorkerModelV3(TorchModelV2, nn.Module):
 
     @override(ModelV2)
     def value_function(self) -> TensorType:
-        features = torch.reshape(self._features, [-1, self._features.size()[-1]])
-        value = self.value_branch(features)
+        value = self.value_branch(self._features)
         value = value.squeeze(1)
         return value
 
