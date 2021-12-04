@@ -15,7 +15,7 @@ def get_worker_policy(config):
     return PolicySpec(
         action_space=spaces.Discrete(9),
         observation_space=spaces.Dict(
-            **{'map': spaces.Box(shape=(32, 32, 30),
+            **{'map': spaces.Box(shape=(16, 16, 30),
                                  dtype=np.float64,
                                  low=-float('inf'),
                                  high=float('inf')
@@ -91,7 +91,7 @@ def get_do_nothing_worker_policy():
         policy_class=DoNothingWorkerPolicy,
         action_space=spaces.Discrete(9),
         observation_space=spaces.Dict(
-            **{'map': spaces.Box(shape=(32, 32, 30),
+            **{'map': spaces.Box(shape=(16, 16, 30),
                                  dtype=np.float64,
                                  low=-float('inf'),
                                  high=float('inf')

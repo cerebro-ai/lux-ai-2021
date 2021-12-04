@@ -17,6 +17,7 @@ from luxai21.callbacks.wandb import WandbLoggerCallback
 from luxai21.env.lux_ma_env import LuxMAEnv
 from luxai21.env.stacked_env import StackedLuxMAEnv
 from luxai21.models.rllib.city_tile import BasicCityTileModel
+from luxai21.models.rllib.worker import WorkerModel
 from luxai21.models.rllib.worker_tile_lstm import WorkerLSTMModel
 from luxai21.models.rllib.worker_v2 import WorkerLSTMModelV2
 from luxai21.models.rllib.worker_v3 import WorkerModelV3
@@ -48,7 +49,7 @@ def run(cfg: DictConfig):
     register_env("lux_ma_env", lambda env_config: env_creator(env_config=env_config))
 
     # MODEL
-    ModelCatalog.register_custom_model("worker_model", WorkerLSTMModel)
+    ModelCatalog.register_custom_model("worker_model", WorkerModel)
     ModelCatalog.register_custom_model("worker_model_v2", WorkerLSTMModelV2)
     ModelCatalog.register_custom_model("worker_model_v3", WorkerModelV3)
     ModelCatalog.register_custom_model("basic_city_tile_model", BasicCityTileModel)

@@ -1,11 +1,11 @@
 defaults:
   - algorithm: ppo
   - env: lux_ma_env
-  - model: v3
+  - model: gnn
   - _self_
 
 debug: false
-verbose: 0
+verbose: 1
 
 stop:
   timesteps_total: 100000000
