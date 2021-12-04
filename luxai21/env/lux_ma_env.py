@@ -134,7 +134,7 @@ class LuxMAEnv(MultiAgentEnv):
             # agent
             # can also be acquired through transfer and lost in the night
             # this is already normalized such that 100 fuel are worth 1.
-            "fuel_collected": 0.2,
+            "fuel_collected": 0,
             # TODO add discounted fuel_collected_at_night
             "fuel_dropped_at_city": 0.2,
 
@@ -145,7 +145,7 @@ class LuxMAEnv(MultiAgentEnv):
             "living_city_tiles": 0,  # get a reward for every living city_tile
 
             # all worker
-            "death_city_tile": -0.2,
+            "death_city_tile": 0,
 
             # global
             "research_point": 0,
