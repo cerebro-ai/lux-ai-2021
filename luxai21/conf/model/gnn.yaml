@@ -2,14 +2,14 @@ worker:
   custom_model: worker_model
   custom_model_config:
       use_meta_node: True
-      policy_hidden_dim: 32
+      policy_hidden_dim: 64
       policy_output_dim: 9
-      value_hidden_dim: 16
+      value_hidden_dim: 64
       map_embedding:
         input_dim: 30
-        hidden_dim: 32
-        output_dim: 32
+        hidden_dim: 128
+        output_dim: 128
       directions:
         # input: 32*5 = 160
-        hidden_1: 64
-        output_dim: 64
+        hidden_1: 128
+        output_dim: 128
