@@ -180,7 +180,8 @@ class WorkerModelV3(TorchModelV2, nn.Module):
         features = self.feature_model(strategy)
         self._features = features
 
-        self.action_mask = input_dict["obs"]["action_mask"].int()
+        self.action_mask = torch.narrow(input_dict["obs"]["action_mask"].int(),
+                                        dim=1, start=0, length=self.config["policy"]["output_size"])
 
         policy_features = self.policy_branch(self._features)
         action_logits = self.logits_head(policy_features)
