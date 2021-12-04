@@ -20,7 +20,7 @@ metrics:
   log_replays: false # since they are broken
 
 weights:
-  win_rate_to_update: 0.65
+  win_rate_to_update: 0.55
   min_steps_between_updates: 10
   self_play: false # will only play against itself
 

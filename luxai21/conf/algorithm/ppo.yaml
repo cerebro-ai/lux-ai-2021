@@ -6,11 +6,11 @@ config:
 
   gamma: 0.99 # 0.98 0.99 0.995 0.999
 
-  rollout_fragment_length: 800
-  train_batch_size: 6400
+  rollout_fragment_length: 500
+  train_batch_size: 4000
   num_sgd_iter: 2
   lr: 1e-4
-  sgd_minibatch_size: 1600
+  sgd_minibatch_size: 1000
   batch_mode: "truncate_episodes"
 
   entropy_coeff: 1e-4 # 1e-3, 1e-7
