@@ -4,7 +4,8 @@ config:
   num_workers: 8
   num_envs_per_worker: 1
 
-  gamma: 0.99 # 0.98 0.99 0.995 0.999
+  gamma: 0.999 # 0.98 0.99 0.995 0.999
+  lambda: 0.99,
 
   rollout_fragment_length: 500
   train_batch_size: 4000
@@ -15,8 +16,7 @@ config:
 
   entropy_coeff: 1e-4 # 1e-3, 1e-7
   lr_schedule: [
-    [       0, 1e-4], # 1e-3, 1e-5
+    [       0, 2e-4], # 1e-3, 1e-5
     [  250000, 1e-5],
-    [  500000, 1e-6],
-    [ 2000000, 1e-8],
+    [ 2000000, 1e-6],
   ]
