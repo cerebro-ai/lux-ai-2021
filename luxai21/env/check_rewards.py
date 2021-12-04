@@ -18,6 +18,9 @@ config = {
         "wandb_every_x": 0,
         "local_every_x": 0,
     },
+    "random_game_size": True,
+    "size_values": [10, 12, 14, 16, 20, 24, 28, 32],
+    "size_probs": [.2, .35, .25, .2, .0, .0, .0, .0],
     "game": {
         "height": 12,
         "width": 12,

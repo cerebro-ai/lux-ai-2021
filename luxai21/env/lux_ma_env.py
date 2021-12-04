@@ -134,9 +134,9 @@ class LuxMAEnv(MultiAgentEnv):
             # agent
             # can also be acquired through transfer and lost in the night
             # this is already normalized such that 100 fuel are worth 1.
-            "fuel_collected": 0.1,
+            "fuel_collected": 0.2,
             # TODO add discounted fuel_collected_at_night
-            "fuel_dropped_at_city": 0.1,
+            "fuel_dropped_at_city": 0.2,
 
             "death_before_end": 0,  # per turn away from 360
 
@@ -145,12 +145,14 @@ class LuxMAEnv(MultiAgentEnv):
             "living_city_tiles": 0,  # get a reward for every living city_tile
 
             # all worker
-            "death_city_tile": -0.5,
+            "death_city_tile": -0.2,
 
             # global
             "research_point": 0,
             "coal_researched": 0,
             "uranium_researched": 0,
+
+            "survive_night": 0.5,
 
             # end
             "win": 0,
@@ -577,6 +579,9 @@ class LuxMAEnv(MultiAgentEnv):
             # turn reward
             piece_id = self.get_piece_id(unit.team, unit)
             rewards_list[piece_id].append(("turn_unit", self.reward_map["turn_unit"]))
+
+            if (self.game_state.state["turn"] % 40) == 0:
+                rewards_list[piece_id].append(("survive_night", self.reward_map["survive_night"]))
 
             # reward for living city_tiles
             value = self.reward_map["living_city_tiles"] * count_city_tiles[unit.team]
