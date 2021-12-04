@@ -187,10 +187,9 @@ class WorkerModel(TorchModelV2, nn.Module):
 
         cell_states = []
         #               NORTH,  EAST      SOUTH   WEST    CENTRAL
-        for offset in [(-1, 0), (0, -1), (1, 0), (0, 1), (0, 0)]:
-            offset = np.array(offset)
-            o_pos = pos + offset + np.array(
-                (1, 1))  # we have to correct the position due to the padding
+        for offset in [(0, 1), (1, 0), (2, 1), (1, 2), (1, 1)]:  # already with padding offset
+            offset = torch.tensor(offset).to(self.device)
+            o_pos = pos + offset
             j = torch.sum(o_pos * j_h, 1).long()
             indices = j[..., None, None].expand(-1, 1, map_emb_padded_flat.size(2))
             cell_state = torch.gather(map_emb_padded_flat, dim=1, index=indices).squeeze(1)
