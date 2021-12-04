@@ -8,15 +8,15 @@ config:
 
   rollout_fragment_length: 600
   train_batch_size: 2400
-  num_sgd_iter: 3
-  lr: 1e-5
+  num_sgd_iter: 2
+  lr: 1e-6
   sgd_minibatch_size: 800
   batch_mode: "truncate_episodes"
 
   entropy_coeff: 1e-5
   lr_schedule: [
-    [       0, 1e-5],
-    [10000000, 5e-6],
-    [80000000, 2e-6],
-    [99000000, 1e-6],
+    [       0, 1e-6],
+    [10000000, 1e-6],
+    [80000000, 2e-7],
+    [99000000, 1e-8],
   ]
