@@ -741,7 +741,7 @@ class LuxMAEnv(MultiAgentEnv):
                         "pos": np.array([cell.pos.x, cell.pos.y]),
                         "action_mask": get_action_mask(self.game_state, team, None, city_tile, self.env_config),
                         "map": pad_map(append_position_layer(map_state, city_tile), 32),
-                        "map_size": np.array([len(self.game_state.map.map)]),
+                        "map_size": np.array([self.game_state.configs["height"]]),
                         # "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
                         "game_state": game_state_array
                     }
@@ -751,7 +751,7 @@ class LuxMAEnv(MultiAgentEnv):
                 "pos": np.array([unit.pos.x, unit.pos.y]),
                 "action_mask": get_action_mask(self.game_state, team, unit, None, self.env_config),
                 "map": pad_map(append_position_layer(map_state, unit), 32),
-                "map_size": np.array([len(self.game_state.map.map)]),
+                "map_size": np.array([self.game_state.configs["height"]]),
                 "game_state": game_state_array
             }
         return states
