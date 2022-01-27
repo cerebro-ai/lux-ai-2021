@@ -1,0 +1,33 @@
+defaults:
+  - algorithm: ppo
+  - env: lux_ma_env
+  - model: gnn
+  - _self_
+
+debug: false
+verbose: 1
+
+stop:
+  timesteps_total: 100000000
+
+checkpoint_at_end: true
+checkpoint_freq: 40
+
+local_dir: "~/ray_results"
+# restore: <path to checkpoint>
+
+metrics:
+  log_replays: false # since they are broken
+
+weights:
+  win_rate_to_update: 0.55
+  min_steps_between_updates: 10
+  self_play: false # will only play against itself
+
+wandb:
+  entity: cerebro-ai  # under which account to find project
+  project: luxai21
+  group: delta  # this is just the group for the runs
+  notes: v3 worker without lstm with three stacked observations
+  tags: [ Dev, Rllib ]
+  mode: online

@@ -1,0 +1,21 @@
+env: lux_ma_env
+
+env_config:
+  stack_size: 3
+
+  game:
+    height: 12
+    width: 12
+
+  random_game_size: true
+  size_values: [ 10, 12, 14, 16, 20, 24, 28, 32 ]
+  size_probs: [ .2, .35, .25, .2, .0, .0, .0, .0 ]
+
+  env:
+    allow_carts: false
+
+  team_spirit: 0
+
+  save_replay:
+    local_every_x: 0
+    wandb_every_x: 0

@@ -1,4 +1,6 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union, Tuple
+
+import torch
 import wandb
 
 import numpy as np
@@ -9,6 +11,7 @@ from luxpythonenv.game.constants import Constants
 from luxpythonenv.game.game import Game
 from luxpythonenv.game.game_constants import GAME_CONSTANTS
 from luxpythonenv.game.position import Position
+from luxpythonenv.game.resource import Resource
 from luxpythonenv.game.unit import Unit
 
 
@@ -111,7 +114,7 @@ def generate_map_state_matrix(game_state: Game):
         :param game_state: current lux.game.Game object
         :return: np.ndarray containing the encoded map state
         """
-    map_state = np.zeros((game_state.map.height, game_state.map.width, 19))
+    map_state = np.zeros((game_state.map.height, game_state.map.width, 21))
     fuel_normalizer = 1000
 
     resource_tiles = find_all_resources(game_state)
@@ -213,6 +216,10 @@ def generate_map_state_matrix(game_state: Game):
             map_state[cell.pos.x][cell.pos.y][17] = cell.road / GAME_CONSTANTS["PARAMETERS"]["MAX_ROAD"]
             map_state[cell.pos.x][cell.pos.y][18] = 1  # is map cell
 
+            # DIRECTIONAL EMBEDDING
+            map_state[cell.pos.x][cell.pos.y][19] = cell.pos.x / (game_state.map.width - 1)
+            map_state[cell.pos.x][cell.pos.y][20] = cell.pos.y / (game_state.map.height - 1)
+
     return map_state
 
 
@@ -237,6 +244,102 @@ def switch_map_matrix_player_view(map_matrix: np.ndarray):
     map_copy[:, :, 10] = map_matrix[:, :, 9]
 
     return map_copy
+
+
+def append_position_layer(game_state_matrix: np.ndarray, entity: Union[Unit, CityTile]) -> np.ndarray:
+    layer = np.zeros((game_state_matrix.shape[0], game_state_matrix.shape[1]))
+    layer[entity.pos.x][entity.pos.y] = 1
+    return np.dstack((layer, game_state_matrix))
+
+
+"""
+SIMPLE OBSERVATIONS
+"""
+
+
+def generate_simple_map_obs(game_state: Game, team: int = 0):
+    """Generate simple map for given game state
+
+    Three dimensional numpy array with spatial size equal to game size
+
+    # Current team
+    0. worker
+    1. city_tile
+    2. city_fuel (max 1000)
+
+    # Other team
+    3. worker
+    4. city_tile
+    5. city_fuel
+
+    # Resources (max 500)
+    6. wood
+    7. coal
+    8. uranium
+
+    x = width
+    y = heigth
+
+    """
+    n_features = 9
+    team_offset = 3
+
+    h, w = game_state.map.height, game_state.map.width
+    obs = np.zeros((w, h, n_features), dtype=np.float64)
+    for row in game_state.map.map:
+        for cell in row:
+            x, y = cell.pos.x, cell.pos.y
+            for unit in cell.units.values():
+                if unit.is_worker():
+                    o = 0 if unit.team == team else team_offset  # this is the offset for current team / other team
+                    # worker
+                    obs[x, y, 0 + o] = 1
+                    break
+            if cell.city_tile:
+                city_tile: CityTile = cell.city_tile
+                o = 0 if city_tile.team == team else team_offset
+                # city_tile
+                obs[x, y, 1 + o] = 1
+                city: City = game_state.cities[city_tile.city_id]
+                # city fuel
+                fuel = city.fuel
+                obs[x, y, 2 + o] = np.tanh(city.fuel / 300)  # such that fuel 1000 ~= 1
+            if cell.resource:
+                if cell.resource.type == Resource.Types.WOOD:
+                    r_o = 0
+                elif cell.resource.type == Resource.Types.COAL:
+                    r_o = 1
+                elif cell.resource.type == Resource.Types.URANIUM:
+                    r_o = 2
+                else:
+                    raise ValueError(f"Resource not recognised {cell.resource.type}")
+                # resource
+                # TODO multiply with fuel value
+                amount = cell.resource.amount
+                obs[x, y, 6 + r_o] = np.tanh(amount / 300)
+    return obs
+
+
+def generate_simple_game_state_obs(game_state: Game, team: int = 0):
+    """Simple game state
+
+    0. Game progress / turn (norm. between zero/one)
+    2. Day/Night cycle progress
+    1. Night (bool)
+
+    """
+    obs = np.ndarray((2,), dtype=np.float64)
+    turn = game_state.state["turn"]
+
+    obs[0] = turn / 360
+    obs[1] = (turn % 40) / 40
+
+    return obs
+
+
+"""
+LARGE OBSERVATIONS
+"""
 
 
 def generate_game_state_matrix(game_state: Game, team: int):
@@ -304,7 +407,7 @@ def generate_game_state_matrix(game_state: Game, team: int):
          enemy_uranium])
 
 
-def generate_unit_states(game_state: Game, team: int, config):
+def generate_unit_states(game_state: Game, map_state: np.ndarray, team: int, config):
     """
     Return a dictionary where the keys are the unit_id or citytile_id and the value the unit
     {
@@ -317,23 +420,65 @@ def generate_unit_states(game_state: Game, team: int, config):
     }
     """
     states = {}
+    game_state_array = generate_simple_game_state_obs(game_state, team)
+
     for _, city in game_state.cities.items():
         if city.team == team:
             for cell in city.city_cells:
                 city_tile = cell.city_tile
-                states[f"ct_{cell.pos.x}_{cell.pos.y}"] = {
+                states[get_piece_id(team, city_tile)] = {
                     "type": 2,
                     "pos": np.array([cell.pos.x, cell.pos.y]),
-                    "action_mask": get_action_mask(game_state, team, None, city_tile, config)
+                    "action_mask": get_action_mask(game_state, team, None, city_tile, config),
+                    "map": append_position_layer(map_state, city_tile),
+                    # "mini_map": generate_mini_map(map_state, (cell.pos.x, cell.pos.y), config["fov"]),
+                    "game_state": game_state_array
                 }
 
     for unit in game_state.state["teamStates"][team]["units"].values():
-        states[unit.id] = {
+        states[get_piece_id(team, unit)] = {
             "type": 0 if unit.is_worker() else 1,
             "pos": np.array([unit.pos.x, unit.pos.y]),
-            "action_mask": get_action_mask(game_state, team, unit, None, config)
+            "action_mask": get_action_mask(game_state, team, unit, None, config),
+            "map": append_position_layer(map_state, unit),
+            "game_state": game_state_array
         }
     return states
+
+
+def generate_mini_map(map: np.ndarray, pos: Tuple, fov: int):
+    """
+    Generate a small cutout of the map around the given position with fov steps in each direction
+
+    Args:
+        map: the whole game map with [x,y,features]
+        pos: Position where to center around the mini map
+        fov: Field of view, how many tiles in each direction to include
+
+    """
+    # first we pad the map 0
+    map_padded = np.pad(map, [(fov,), (fov,), (0,)], mode="constant", constant_values=0)
+    x, y = pos[0] + fov, pos[1] + fov
+    # cutout
+    mini_map = map_padded[x - fov: x + fov + 1, y - fov:y + fov + 1, :]
+
+    return mini_map
+
+
+def pad_map(map_array: np.ndarray, padded_size: int):
+    pad = (padded_size - map_array.shape[0]) // 2
+    return np.pad(map_array, [(pad,), (pad,), (0,)], mode="constant", constant_values=0)
+
+
+def unpad_map(map_array: np.ndarray, original_size: int) -> Union[torch.Tensor, np.ndarray]:
+    if isinstance(map_array, torch.Tensor):
+        pad = (map_array.size()[0] - original_size) // 2
+        if map_array.dim() == 4:
+            return map_array[:, pad:-pad, pad:-pad, :]
+    else:
+        pad = (map_array.shape[0] - original_size) // 2
+
+    return map_array[pad:-pad, pad:-pad, :]
 
 
 def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile: Optional[CityTile], config):
@@ -355,9 +500,10 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
     11. spawn cart
     12. research
     """
-    action_mask = np.zeros(13)
 
     if unit is not None:
+        action_mask = np.zeros(9)
+
         action_mask[0] = 1  # always allow to do nothing
 
         # check if can act
@@ -422,20 +568,22 @@ def get_action_mask(game_state: Game, team: int, unit: Optional[Unit], city_tile
                         action_mask[8] = 1
 
     elif city_tile is not None:
+        action_mask = np.zeros(4)
+
         # do nothing
-        action_mask[9] = 1
+        action_mask[0] = 1
 
         if not city_tile.can_act():
             return action_mask
 
         if city_tile.can_build_unit():
             if get_unit_count(game_state.state, team) < get_city_tile_count(game_state.cities, team):
-                action_mask[10] = 1
+                action_mask[1] = 1
                 if config["allow_carts"]:
-                    action_mask[11] = 1
+                    action_mask[2] = 1
 
         if city_tile.can_research():
-            action_mask[12] = 1
+            action_mask[3] = 1
     else:
         raise Exception("unit and city_tile both None")
 
@@ -483,12 +631,18 @@ def get_cart_count(game_state: Dict, team: int):
 
 def log_and_get_citytiles_game_end(game_state: Game):
     # TODO Split according to map size
-    citytiles_player_one = get_city_tile_count(game_state.cities, 0)
-    citytiles_player_two = get_city_tile_count(game_state.cities, 1)
-    mean = (citytiles_player_one + citytiles_player_two)/2
+    citytiles_end = get_city_tile_count(game_state.cities, 0)
     wandb.log({
-        'Citytiles_end_player_one': citytiles_player_one,
-        'Citytiles_end_player_two': citytiles_player_two,
-        'Citytiles_end_mean': mean,
+        'Citytiles_end_player_one': citytiles_end,
     })
-    return mean
+    return citytiles_end
+
+
+def test_pad_map():
+    map_v = np.random.random((12, 12, 30))
+    map_padded = pad_map(map_v, 32)
+    assert map_padded.shape == (32, 32, 30)
+
+    map_unpad = unpad_map(map_padded, 12)
+
+    assert np.all(map_v == map_unpad)

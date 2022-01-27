@@ -139,3 +139,5 @@ dmypy.json
 lux_tensorboard/
 log.txt
 luxai21/replays/
+luxai21/config_rllib.py
+luxai21/lux-replays/
